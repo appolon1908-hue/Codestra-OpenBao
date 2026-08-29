@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "1.0",
+  "status": "SOURCE_PREPARED_NOT_APPLIED",
+  "authority": "Codestra-OpenBao",
+  "initialization": {
+    "automatedInCompose": false,
+    "unsealShares": 5,
+    "unsealThreshold": 3,
+    "rootTokenRetainedAfterBootstrap": false,
+    "recoveryMaterialStoredInGit": false,
+    "productionRequiresDocumentedCeremony": true
+  },
+  "audit": {
+    "requiredDevices": ["file-json", "socket-governed-forwarder"],
+    "requestBodiesLogged": false,
+    "responseBodiesLogged": false,
+    "hmacAccessor": true,
+    "alertOnAuditFailure": true
+  },
+  "authMethods": [
+    {"type": "approle", "use": "bare-metal and compose workloads", "secretIdDelivery": "response-wrapped", "tokenTtl": "15m", "tokenMaxTtl": "1h"},
+    {"type": "oidc", "use": "human operators through Codestra Keycloak", "tokenTtl": "30m", "tokenMaxTtl": "2h"}
+  ],
+  "secretEngines": [
+    {"path": "secret/", "type": "kv-v2", "purpose": "versioned runtime configuration", "maxVersions": 10, "deleteVersionAfter": "90d"},
+    {"path": "pki_observability/", "type": "pki", "purpose": "short-lived observability workload certificates", "maxLeafTtl": "24h"},
+    {"path": "database/", "type": "database", "purpose": "dynamic PostgreSQL and analytics credentials", "defaultTtl": "1h", "maxTtl": "8h"},
+    {"path": "transit/", "type": "transit", "purpose": "approved application encryption and signing", "observabilitySigningAuthority": false}
+  ],
+  "servicePolicies": [
+    "loki-runtime",
+    "tempo-runtime",
+    "grafana-runtime",
+    "superset-runtime",
+    "otel-runtime",
+    "prometheus-openbao-metrics"
+  ],
+  "businesses": [
+    "codestra",
+    "moneybee",
+    "beyvra",
+    "breero",
+    "larim-a",
+    "transportation",
+    "booked4seasons",
+    "social",
+    "klyrow",
+    "telnexa",
+    "kyqra",
+    "restaurant",
+    "provisioning"
+  ],
+  "businessIdentityRules": {
+    "oneAppRolePerBusinessTelemetryAgent": true,
+    "crossBusinessSecretReadAllowed": false,
+    "customerSpecificPoliciesGenerated": false,
+    "customerIdsUsedAsPolicyNames": false,
+    "businessTelemetryIdentityCanReadBusinessRuntimeSecrets": false,
+    "beyvraObservabilityCanSignTrades": false,
+    "beyvraObservabilityCanDecryptTradePayloads": false
+  },
+  "rotation": {
+    "observabilityClientCertificates": "12h",
+    "observabilityServerCertificates": "24h",
+    "databaseCredentials": "1h",
+    "oauthClientSecrets": "90d-or-provider-minimum",
+    "staticObjectStoreCredentials": "30d-until-dynamic-provider-supported"
+  },
+  "releaseGates": {
+    "policyDiffReviewed": true,
+    "capabilityEscalationTestRequired": true,
+    "crossBusinessDenyTestRequired": true,
+    "auditDeviceFailureTestRequired": true,
+    "backupAndRestoreEvidenceRequired": true,
+    "rootTokenRevocationEvidenceRequired": true,
+    "unsealMaterialInCiAllowed": false,
+    "liveApplyFromPullRequestAllowed": false
+  }
+}
