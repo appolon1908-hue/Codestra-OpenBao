@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "service": "openbao",
+  "hostname": "bao.codestra.media",
+  "publicUrl": "https://bao.codestra.media",
+  "apiAddress": "https://bao.codestra.media",
+  "hostBind": "127.0.0.1:8200",
+  "clusterBind": "127.0.0.1:8201",
+  "publicNativePortAllowed": false,
+  "edgeRepository": "appolon1908-hue/Caddy",
+  "identityRepository": "appolon1908-hue/Keycloak",
+  "networkPolicy": {
+    "caddySourceAllowlistRequired": true,
+    "defaultAllowedCidrs": ["127.0.0.1/32", "10.40.0.0/24"],
+    "nativeApiInternetExposureAllowed": false
+  },
+  "oidc": {
+    "issuer": "https://auth.codestra.co/realms/codestra",
+    "clientId": "openbao-secrets",
+    "clientSecretFile": "/run/secrets/openbao_oidc_client_secret",
+    "authMountPath": "oidc",
+    "redirectUris": [
+      "https://bao.codestra.media/v1/auth/oidc/callback",
+      "https://bao.codestra.media/ui/vault/auth/oidc/oidc/callback",
+      "http://localhost:8250/oidc/callback"
+    ],
+    "roles": ["secrets-operator", "secrets-admin"],
+    "nativePolicyEnforcementRequired": true
+  },
+  "storage": {
+    "backend": "unselected",
+    "haDesignRequired": true,
+    "backupRestoreRequired": true,
+    "sealDesignRequired": true
+  },
+  "activation": {
+    "deploymentEnabled": false,
+    "initialized": false,
+    "unsealed": false,
+    "oidcConfigured": false,
+    "policiesInstalled": false,
+    "caddyRouteActivated": false,
+    "productionApproved": false
+  }
+}
