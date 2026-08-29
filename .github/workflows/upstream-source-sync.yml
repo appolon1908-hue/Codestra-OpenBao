@@ -57,9 +57,46 @@ jobs:
 
           export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA
           python3 - <<'PY'
-          import json, os
+          import json, os, re
           from datetime import datetime, timezone
           from pathlib import Path
+
+          sanitizations=[]
+
+          def sanitize(path, replacements, rule):
+              p=Path(path)
+              if not p.exists():
+                  return
+              text=p.read_text(errors='surrogateescape')
+              original=text
+              count=0
+              for pattern,repl in replacements:
+                  text,n=re.subn(pattern,repl,text)
+                  count += n
+              if text != original:
+                  p.write_text(text, errors='surrogateescape')
+                  sanitizations.append({'rule':rule,'files_changed':1,'replacements':count,'path':path})
+
+          sanitize(
+              'upstream/ui/tests/unit/lib/console-helpers-test.js',
+              [
+                  (r'AKIA[0-9A-Z]{16}', 'AWS_ACCESS_KEY_ID_TEST_INVALID'),
+                  (r'(?i)(aws_secret_access_key[\"\']?\s*[:=]\s*[\"\']?)[A-Za-z0-9/+=]{20,}', r'\1AWS_SECRET_ACCESS_KEY_TEST_INVALID'),
+              ],
+              'replace AWS credential-shaped upstream UI test fixtures with explicit invalid placeholders'
+          )
+
+          vault_patterns=[
+              (r'(?<![A-Za-z0-9])(?:hvs|hvr|hvb|hvp)\.[A-Za-z0-9_-]{12,}', 'OPENBAO_SERVICE_TOKEN_TEST_INVALID'),
+              (r'(?<![A-Za-z0-9])s\.[A-Za-z0-9_-]{16,}', 'OPENBAO_SERVICE_TOKEN_TEST_INVALID'),
+          ]
+          for path in [
+              'upstream/website/content/docs/api/system/mfa-validate.mdx',
+              'upstream/website/content/docs/agent-and-proxy/agent/caching/index.mdx',
+              'upstream/website/content/docs/agent-and-proxy/proxy/caching/index.mdx',
+              'upstream/website/content/docs/api/auth/userpass.mdx',
+          ]:
+              sanitize(path, vault_patterns, 'replace Vault/OpenBao token-shaped upstream documentation examples with explicit invalid placeholders')
 
           lock = {
               'schema_version': '1.0',
@@ -71,6 +108,8 @@ jobs:
               'deployment_enabled': False,
               'secret_material_allowed_in_git': False,
           }
+          if sanitizations:
+              lock['sanitizations']=sanitizations
           Path('CODESTRA_UPSTREAM_LOCK.json').write_text(json.dumps(lock, indent=2) + '\n')
           PY
 
@@ -79,6 +118,7 @@ jobs:
           git add -A upstream CODESTRA_UPSTREAM_LOCK.json
           git diff --cached --quiet && exit 0
           git commit -m "vendor: sync official OpenBao upstream ${UPSTREAM_SHA}"
+          git pull --rebase origin main
           git push origin HEAD:main
           git push origin HEAD:staging
           git push origin HEAD:production
