@@ -1,12 +1,12 @@
-path "secret/data/observability/loki/runtime" {
+path "kv-platform/data/observability/loki/runtime" {
   capabilities = ["read"]
 }
 
-path "secret/data/observability/loki/object-storage" {
+path "kv-platform/data/observability/loki/object-storage" {
   capabilities = ["read"]
 }
 
-path "pki_observability/issue/loki-server" {
+path "pki-platform-issuing/issue/loki-server" {
   capabilities = ["create", "update"]
 }
 
