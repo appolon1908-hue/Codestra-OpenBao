@@ -1,12 +1,12 @@
-path "secret/data/observability/opentelemetry/runtime" {
+path "kv-platform/data/observability/opentelemetry/runtime" {
   capabilities = ["read"]
 }
 
-path "secret/data/observability/opentelemetry/tenant-routing" {
+path "kv-platform/data/observability/opentelemetry/tenant-routing" {
   capabilities = ["read"]
 }
 
-path "pki_observability/issue/otel-collector" {
+path "pki-platform-issuing/issue/otel-collector" {
   capabilities = ["create", "update"]
 }
 
