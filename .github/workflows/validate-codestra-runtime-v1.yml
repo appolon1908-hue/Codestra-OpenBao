@@ -1,0 +1,114 @@
+name: Validate Codestra OpenBao runtime v1
+
+on:
+  pull_request:
+    paths:
+      - "codestra/runtime-v1/**"
+      - ".github/workflows/validate-codestra-runtime-v1.yml"
+  push:
+    branches:
+      - development
+      - test
+      - staging
+      - production
+      - main
+    paths:
+      - "codestra/runtime-v1/**"
+      - ".github/workflows/validate-codestra-runtime-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache-dependency-path: upstream/go.sum
+      - name: Build the exact vendored OpenBao source
+        working-directory: upstream
+        run: go build -trimpath -o ../.tmp-openbao .
+      - name: Validate static policy HCL with OpenBao
+        shell: bash
+        run: |
+          set -euo pipefail
+          for policy in codestra/runtime-v1/policies/*.hcl; do
+            ./.tmp-openbao policy fmt "$policy" >/dev/null
+          done
+      - name: Generate and validate every business telemetry policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(mktemp -d)"
+          python codestra/runtime-v1/generate_business_policies.py --output-dir "$out"
+          test "$(find "$out" -maxdepth 1 -name '*.hcl' | wc -l)" -eq 13
+          for policy in "$out"/*.hcl; do
+            ./.tmp-openbao policy fmt "$policy" >/dev/null
+          done
+          grep -q 'capabilities = \["deny"\]' "$out/telemetry-beyvra.hcl"
+          grep -q 'transit/sign/beyvra-' "$out/telemetry-beyvra.hcl"
+          ! grep -R 'secret/data/businesses/\*' "$out"
+      - name: Verify OpenBao server configuration with temporary CI certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$work/server-key.pem" \
+            -out "$work/server-cert.pem" \
+            -days 1 -subj '/CN=codestra-openbao' >/dev/null 2>&1
+          sudo mkdir -p /run/secrets /openbao/data
+          sudo cp "$work/server-key.pem" /run/secrets/openbao_server_key.pem
+          sudo cp "$work/server-cert.pem" /run/secrets/openbao_server_cert.pem
+          sudo cp "$work/server-cert.pem" /run/secrets/codestra_workload_ca.pem
+          sudo chmod 0600 /run/secrets/openbao_server_key.pem
+          sudo ./.tmp-openbao server \
+            -config=codestra/runtime-v1/openbao.hcl \
+            -verify-only
+      - name: Install pinned YAML parser
+        run: python -m pip install --disable-pip-version-check PyYAML==6.0.2
+      - name: Validate Codestra desired state and runtime boundary
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+          import yaml
+
+          root = Path("codestra/runtime-v1")
+          config = (root / "openbao.hcl").read_text()
+          desired = json.loads((root / "desired-state.json").read_text())
+          compose_text = (root / "compose.yaml").read_text()
+          compose = yaml.safe_load(compose_text)
+          service = compose["services"]["openbao"]
+          policies = "\n".join(path.read_text() for path in (root / "policies").glob("*.hcl"))
+
+          required = {
+              "codestra", "moneybee", "beyvra", "breero", "larim-a",
+              "transportation", "booked4seasons", "social", "klyrow",
+              "telnexa", "kyqra", "restaurant", "provisioning",
+          }
+          assert set(desired["businesses"]) == required
+          assert desired["status"] == "SOURCE_PREPARED_NOT_APPLIED"
+          assert desired["initialization"]["automatedInCompose"] is False
+          assert desired["initialization"]["rootTokenRetainedAfterBootstrap"] is False
+          assert desired["businessIdentityRules"]["crossBusinessSecretReadAllowed"] is False
+          assert desired["businessIdentityRules"]["beyvraObservabilityCanSignTrades"] is False
+          assert desired["releaseGates"]["liveApplyFromPullRequestAllowed"] is False
+          assert 'tls_require_and_verify_client_cert = true' in config
+          assert 'unauthenticated_metrics_access = false' in config
+          assert 'disable_mlock = false' in config
+          assert 'raw_storage_endpoint = false' in config
+          assert 'capabilities = ["deny"]' in policies
+          assert 'capabilities = ["sudo"]' not in policies
+          assert 'path "secret/data/*"' not in policies
+          assert "ports" not in service
+          assert service["read_only"] is True
+          assert "IPC_LOCK" in service["cap_add"]
+          assert "init" not in " ".join(service["command"]).lower()
+          assert "latest" not in compose_text.lower()
+          print("Codestra OpenBao runtime validation PASS")
+      - name: Validate Compose structure without resolving runtime files
+        run: docker compose -f codestra/runtime-v1/compose.yaml config --no-interpolate >/dev/null
