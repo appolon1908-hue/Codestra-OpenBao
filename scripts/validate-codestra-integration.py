@@ -130,7 +130,16 @@ def main() -> None:
         fail("listener example is incomplete")
     if "0.0.0.0" in listener:
         fail("public wildcard listeners are prohibited")
-    if "storage \"" in listener or "seal \"" in listener:
+
+    active_listener_lines = [
+        line.strip()
+        for line in listener.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if any(
+        line.startswith('storage "') or line.startswith('seal "')
+        for line in active_listener_lines
+    ):
         fail("storage/seal must not be selected in this branch")
 
     combined = RUNTIME.read_text(encoding="utf-8") + OIDC_PLAN.read_text(encoding="utf-8")
