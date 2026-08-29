@@ -1,16 +1,16 @@
-path "secret/data/observability/grafana/runtime" {
+path "kv-platform/data/observability/grafana/runtime" {
   capabilities = ["read"]
 }
 
-path "secret/data/observability/grafana/oauth" {
+path "kv-platform/data/observability/grafana/oauth" {
   capabilities = ["read"]
 }
 
-path "secret/data/observability/grafana/datasources/*" {
+path "kv-platform/data/observability/grafana/datasources/*" {
   capabilities = ["read"]
 }
 
-path "pki_observability/issue/grafana-server" {
+path "pki-platform-issuing/issue/grafana-server" {
   capabilities = ["create", "update"]
 }
 
