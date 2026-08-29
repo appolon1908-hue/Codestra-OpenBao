@@ -1,16 +1,20 @@
-path "secret/data/businesses/beyvra/trading/*" {
+path "kv-beyvra/data/*/production/broker-exchange-custody/*" {
   capabilities = ["deny"]
 }
 
-path "secret/metadata/businesses/beyvra/trading/*" {
+path "kv-beyvra/metadata/*/production/broker-exchange-custody/*" {
   capabilities = ["deny"]
 }
 
-path "transit/sign/beyvra-*" {
+path "transit-beyvra/sign/*" {
   capabilities = ["deny"]
 }
 
-path "transit/decrypt/beyvra-*" {
+path "transit-beyvra/decrypt/*" {
+  capabilities = ["deny"]
+}
+
+path "transit-beyvra/export/*" {
   capabilities = ["deny"]
 }
 
