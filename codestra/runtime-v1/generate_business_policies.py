@@ -27,13 +27,13 @@ def render(business: str) -> str:
     if not SLUG.fullmatch(business):
         raise ValueError(f"invalid business slug: {business}")
     blocks = [
-        f'''path "secret/data/observability/clients/{business}/alloy" {{
+        f'''path "kv-platform/data/observability/clients/{business}/alloy" {{
   capabilities = ["read"]
 }}''',
-        f'''path "secret/data/observability/clients/{business}/opentelemetry" {{
+        f'''path "kv-platform/data/observability/clients/{business}/opentelemetry" {{
   capabilities = ["read"]
 }}''',
-        f'''path "pki_observability/issue/telemetry-client-{business}" {{
+        f'''path "pki-platform-issuing/issue/telemetry-client-{business}" {{
   capabilities = ["create", "update"]
 }}''',
         '''path "auth/token/lookup-self" {
@@ -45,17 +45,35 @@ def render(business: str) -> str:
         '''path "sys/leases/renew" {
   capabilities = ["update"]
 }''',
+        '''path "auth/token/create*" {
+  capabilities = ["deny"]
+}''',
+        '''path "sys/mounts/*" {
+  capabilities = ["deny"]
+}''',
+        '''path "sys/auth/*" {
+  capabilities = ["deny"]
+}''',
+        '''path "sys/audit/*" {
+  capabilities = ["deny"]
+}''',
     ]
     if business == "beyvra":
         blocks.extend(
             [
-                '''path "secret/data/businesses/beyvra/trading/*" {
+                '''path "kv-beyvra/data/*/production/broker-exchange-custody/*" {
   capabilities = ["deny"]
 }''',
-                '''path "transit/sign/beyvra-*" {
+                '''path "kv-beyvra/metadata/*/production/broker-exchange-custody/*" {
   capabilities = ["deny"]
 }''',
-                '''path "transit/decrypt/beyvra-*" {
+                '''path "transit-beyvra/sign/*" {
+  capabilities = ["deny"]
+}''',
+                '''path "transit-beyvra/decrypt/*" {
+  capabilities = ["deny"]
+}''',
+                '''path "transit-beyvra/export/*" {
   capabilities = ["deny"]
 }''',
                 '''path "database/creds/beyvra-trading-*" {
