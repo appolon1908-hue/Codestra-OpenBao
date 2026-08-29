@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "applyMode": "plan-only",
+  "authMount": {
+    "path": "oidc",
+    "type": "oidc",
+    "description": "Codestra Keycloak OIDC"
+  },
+  "config": {
+    "oidcDiscoveryUrl": "https://auth.codestra.co/realms/codestra",
+    "oidcClientId": "openbao-secrets",
+    "oidcClientSecretFile": "/run/secrets/openbao_oidc_client_secret",
+    "defaultRole": "",
+    "providerConfig": {}
+  },
+  "roles": [
+    {
+      "name": "codestra-secrets-operator",
+      "roleType": "oidc",
+      "boundAudiences": ["openbao-secrets"],
+      "allowedRedirectUris": [
+        "https://bao.codestra.media/v1/auth/oidc/callback",
+        "https://bao.codestra.media/ui/vault/auth/oidc/oidc/callback",
+        "http://localhost:8250/oidc/callback"
+      ],
+      "userClaim": "sub",
+      "groupsClaim": "/realm_access/roles",
+      "boundClaims": {
+        "/realm_access/roles": ["secrets-operator"]
+      },
+      "policies": ["codestra-secrets-operator"],
+      "oidcScopes": ["openid", "profile", "email"],
+      "tokenTtl": "30m",
+      "tokenMaxTtl": "1h"
+    },
+    {
+      "name": "codestra-secrets-admin",
+      "roleType": "oidc",
+      "boundAudiences": ["openbao-secrets"],
+      "allowedRedirectUris": [
+        "https://bao.codestra.media/v1/auth/oidc/callback",
+        "https://bao.codestra.media/ui/vault/auth/oidc/oidc/callback",
+        "http://localhost:8250/oidc/callback"
+      ],
+      "userClaim": "sub",
+      "groupsClaim": "/realm_access/roles",
+      "boundClaims": {
+        "/realm_access/roles": ["secrets-admin"]
+      },
+      "policies": ["codestra-secrets-admin"],
+      "oidcScopes": ["openid", "profile", "email"],
+      "tokenTtl": "15m",
+      "tokenMaxTtl": "30m"
+    }
+  ],
+  "policyPrerequisites": {
+    "codestra-secrets-operator": "must be separately defined with explicit approved secret paths",
+    "codestra-secrets-admin": "must be separately defined with explicit administrative capabilities and independent review",
+    "rootOrDefaultBroadPolicyAllowed": false,
+    "oidcAuthenticationReplacesOpenBaoPolicies": false
+  },
+  "activation": {
+    "authMethodEnabled": false,
+    "clientSecretInstalled": false,
+    "rolesApplied": false,
+    "policiesApplied": false,
+    "productionLoginEnabled": false
+  }
+}
