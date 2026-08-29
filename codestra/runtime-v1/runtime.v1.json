@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "component": "openbao",
   "role": "codestra-secrets-pki-and-cryptographic-policy-authority",
   "canonicalHostname": "bao.codestra.media",
@@ -19,6 +19,20 @@
     "kyqra",
     "restaurant",
     "provisioning"
+  ],
+  "platformProductScope": [
+    "loki",
+    "prometheus",
+    "grafana",
+    "tempo",
+    "opentelemetry",
+    "alloy",
+    "node-exporter",
+    "cadvisor",
+    "redis-exporter",
+    "blackbox-exporter",
+    "superset",
+    "openbao"
   ],
   "environmentScope": ["development", "test", "staging", "production"],
   "storage": {
@@ -69,19 +83,24 @@
     }
   },
   "secretEngines": {
+    "platformKvV2Mount": "kv-platform/",
+    "platformPathPattern": "data/<domain>/<product>/<secret-domain>/...",
     "businessKvV2MountPerBusiness": true,
-    "databaseDynamicCredentials": true,
-    "pkiIntermediateCa": true,
-    "transitEncryption": true,
-    "sshOrSigningEngineEnabledByDefault": false,
     "businessMountPattern": "kv-<business>/",
-    "applicationPathPattern": "data/<application>/<environment>/<secret-domain>/..."
+    "applicationPathPattern": "data/<application>/<environment>/<secret-domain>/...",
+    "databaseDynamicCredentials": true,
+    "pkiIntermediateMount": "pki-platform-intermediate/",
+    "pkiIssuingMount": "pki-platform-issuing/",
+    "transitPlatformMount": "transit-platform/",
+    "transitBeyvraMount": "transit-beyvra/",
+    "sshOrSigningEngineEnabledByDefault": false
   },
   "businessIsolation": {
     "mountPerBusiness": true,
     "environmentPathIsolation": true,
     "crossBusinessWildcardPolicies": false,
     "customerControlledPolicyNames": false,
+    "platformProductsMayReadBusinessSecretValues": false,
     "observabilityMayReadSecretValues": false,
     "supersetMayReadSecretValues": false,
     "n8nMayReadUnscopedSecretValues": false
@@ -123,6 +142,11 @@
       "loki",
       "tempo",
       "alloy",
+      "opentelemetry",
+      "node-exporter",
+      "cadvisor",
+      "redis-exporter",
+      "blackbox-exporter",
       "n8n",
       "other-business-workloads"
     ],
@@ -151,7 +175,9 @@
     "sealOrUnsealCustodyApproved": false,
     "keycloakOidcConfigured": false,
     "workloadJwtConfigured": false,
+    "platformMountCreated": false,
     "businessMountsCreated": false,
+    "platformPoliciesApplied": false,
     "businessPoliciesApplied": false,
     "crossBusinessDenialTestPassed": false,
     "auditDevicesEnabled": false,
