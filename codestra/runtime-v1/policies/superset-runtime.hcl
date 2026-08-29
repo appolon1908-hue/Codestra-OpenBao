@@ -1,8 +1,8 @@
-path "secret/data/analytics/superset/runtime" {
+path "kv-platform/data/analytics/superset/runtime" {
   capabilities = ["read"]
 }
 
-path "secret/data/analytics/superset/oauth" {
+path "kv-platform/data/analytics/superset/oauth" {
   capabilities = ["read"]
 }
 
@@ -14,7 +14,7 @@ path "database/creds/superset-analytics-readonly" {
   capabilities = ["read"]
 }
 
-path "pki_observability/issue/superset-server" {
+path "pki-platform-issuing/issue/superset-server" {
   capabilities = ["create", "update"]
 }
 
