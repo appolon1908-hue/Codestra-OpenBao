@@ -1,12 +1,12 @@
-path "secret/data/observability/tempo/runtime" {
+path "kv-platform/data/observability/tempo/runtime" {
   capabilities = ["read"]
 }
 
-path "secret/data/observability/tempo/object-storage" {
+path "kv-platform/data/observability/tempo/object-storage" {
   capabilities = ["read"]
 }
 
-path "pki_observability/issue/tempo-server" {
+path "pki-platform-issuing/issue/tempo-server" {
   capabilities = ["create", "update"]
 }
 
