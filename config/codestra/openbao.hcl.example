@@ -1,0 +1,20 @@
+# Codestra OpenBao listener example.
+# This fragment is intentionally incomplete until storage, HA, seal, backup,
+# and recovery designs are separately reviewed.
+
+ui = true
+api_addr = "https://bao.codestra.media"
+cluster_addr = "https://127.0.0.1:8201"
+
+listener "tcp" {
+  address         = "127.0.0.1:8200"
+  cluster_address = "127.0.0.1:8201"
+
+  # TLS terminates at the same-host Caddy edge. This is acceptable only while
+  # the listener remains loopback/private and native port 8200 is not public.
+  tls_disable = true
+}
+
+# Required before deployment, but deliberately not selected in this branch:
+# storage "..." { ... }
+# seal "..." { ... }
