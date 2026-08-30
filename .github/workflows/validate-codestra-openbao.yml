@@ -6,6 +6,7 @@ on:
       - 'codestra/**'
       - 'scripts/validate_codestra_openbao.py'
       - 'scripts/validate_codestra_openbao_oidc.py'
+      - 'scripts/validate_codestra_review_boundaries.py'
       - '.github/workflows/validate-codestra-openbao.yml'
       - '.github/workflows/upstream-source-sync.yml'
       - 'CODESTRA_UPSTREAM.json'
@@ -15,6 +16,7 @@ on:
       - 'codestra/**'
       - 'scripts/validate_codestra_openbao.py'
       - 'scripts/validate_codestra_openbao_oidc.py'
+      - 'scripts/validate_codestra_review_boundaries.py'
       - '.github/workflows/validate-codestra-openbao.yml'
       - '.github/workflows/upstream-source-sync.yml'
       - 'CODESTRA_UPSTREAM.json'
@@ -46,13 +48,18 @@ jobs:
         env:
           PYTHONPYCACHEPREFIX: /tmp/codestra-openbao-pycache
         run: |
-          python -m py_compile scripts/validate_codestra_openbao.py scripts/validate_codestra_openbao_oidc.py
+          python -m py_compile \
+            scripts/validate_codestra_openbao.py \
+            scripts/validate_codestra_openbao_oidc.py \
+            scripts/validate_codestra_review_boundaries.py
           python scripts/validate_codestra_openbao.py
 
       - name: Validate Keycloak OIDC, PKCE, private-edge and negative-test contract
         env:
           PYTHONPYCACHEPREFIX: /tmp/codestra-openbao-pycache
-        run: python scripts/validate_codestra_openbao_oidc.py
+        run: |
+          python scripts/validate_codestra_openbao_oidc.py
+          python scripts/validate_codestra_review_boundaries.py
 
       - name: Prove policy templates are bounded and placeholder-driven
         run: |
@@ -71,6 +78,7 @@ jobs:
           test "$(find codestra/runtime-v1/policies -maxdepth 1 -type f -name '*.hcl' -empty | wc -l)" -eq 0
           ! grep -R -E 'capabilities[[:space:]]*=[[:space:]]*\[[^]]*"sudo"' codestra/runtime-v1/policies
           ! grep -R -E 'path[[:space:]]+"\*"' codestra/runtime-v1/policies
+          ! grep -E '^path "sys/leases/(renew|revoke|renew-prefix|revoke-prefix|revoke-force)' codestra/runtime-v1/policies/workload-read-template.hcl
           grep -q 'kv-__BUSINESS__/data/__APPLICATION__/__ENVIRONMENT__' codestra/runtime-v1/policies/workload-read-template.hcl
           grep -q 'DO NOT APPLY by default' codestra/runtime-v1/policies/beyvra-execution-template.hcl
 
@@ -94,5 +102,6 @@ jobs:
           assert runtime['activation'] and all(value is False for value in runtime['activation'].values())
           assert control['releaseGates'] and all(value is False for value in control['releaseGates'].values())
           assert oidc['activation'] and all(value is False for value in oidc['activation'].values())
+          assert runtime['identity']['human']['clientId'] == oidc['client']['clientId'] == 'openbao-secrets'
           assert runtime['beyvraHighSecurityCompartment']['brokerExchangeCustodySigningEnabledByDefault'] is False
           PY
