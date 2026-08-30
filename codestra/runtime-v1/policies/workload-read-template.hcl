@@ -1,6 +1,13 @@
 # Render __BUSINESS__, __APPLICATION__, __ENVIRONMENT__, __DATABASE_ROLE__,
 # __PKI_ROLE__ and __TRANSIT_KEY__ only from reviewed deployment inventory.
 # The corresponding JWT role must bind the same immutable claims and audience.
+#
+# Ordinary workloads deliberately receive no sys/leases/renew or
+# sys/leases/revoke capability. Those endpoints take a lease ID in the request
+# body and cannot be constrained by these path placeholders. Workloads obtain a
+# replacement short-lived credential/certificate through their scoped engine
+# path; a separately reviewed broker/operator owns exceptional renewal or
+# revocation workflows.
 
 path "kv-__BUSINESS__/data/__APPLICATION__/__ENVIRONMENT__/*" {
   capabilities = ["read"]
@@ -23,14 +30,6 @@ path "transit-platform/encrypt/__TRANSIT_KEY__" {
 }
 
 path "transit-platform/decrypt/__TRANSIT_KEY__" {
-  capabilities = ["update"]
-}
-
-path "sys/leases/renew" {
-  capabilities = ["update"]
-}
-
-path "sys/leases/revoke" {
   capabilities = ["update"]
 }
 

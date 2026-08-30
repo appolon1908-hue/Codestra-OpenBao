@@ -41,8 +41,8 @@ listener "tcp" {
   tls_cert_file = "/run/secrets/openbao_server_cert"
   tls_key_file = "/run/secrets/openbao_server_key"
   tls_client_ca_file = "/run/secrets/openbao_client_ca"
-  tls_require_and_verify_client_cert = false
-  tls_disable_client_certs = true
+  tls_require_and_verify_client_cert = true
+  tls_disable_client_certs = false
 
   telemetry {
     unauthenticated_metrics_access = false
