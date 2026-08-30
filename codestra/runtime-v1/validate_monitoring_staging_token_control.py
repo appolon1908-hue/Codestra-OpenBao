@@ -32,7 +32,10 @@ def main() -> None:
     assert data["prometheus_oauth2"]["automatic_short_lived_token_refresh"] is True
     assert all(value is False for value in data["activation"].values())
 
-    policy = (ROOT / "policies/monitoring-staging-evidence.hcl").read_text()
+    policy_path = ROOT / "staging-policies/monitoring-staging-evidence.hcl"
+    assert policy_path.is_file()
+    assert not (ROOT / "policies/monitoring-staging-evidence.hcl").exists()
+    policy = policy_path.read_text()
     assert 'kv-platform/data/observability/middleware/staging/keycloak-client' in policy
     assert 'capabilities = ["read"]' in policy
     for denied in (
