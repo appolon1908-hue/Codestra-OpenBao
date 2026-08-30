@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - "codestra/runtime-v1/monitoring-staging-token-control.v1.json"
-      - "codestra/runtime-v1/policies/monitoring-staging-evidence.hcl"
+      - "codestra/runtime-v1/staging-policies/monitoring-staging-evidence.hcl"
       - "codestra/runtime-v1/validate_monitoring_staging_token_control.py"
       - ".github/workflows/validate-monitoring-staging-token-control.yml"
   push:
     branches: [development]
     paths:
       - "codestra/runtime-v1/monitoring-staging-token-control.v1.json"
-      - "codestra/runtime-v1/policies/monitoring-staging-evidence.hcl"
+      - "codestra/runtime-v1/staging-policies/monitoring-staging-evidence.hcl"
       - "codestra/runtime-v1/validate_monitoring_staging_token_control.py"
       - ".github/workflows/validate-monitoring-staging-token-control.yml"
 
