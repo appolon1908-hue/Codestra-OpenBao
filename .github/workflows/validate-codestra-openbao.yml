@@ -49,7 +49,19 @@ jobs:
 
       - name: Prove policy templates are bounded and placeholder-driven
         run: |
-          test "$(find codestra/runtime-v1/policies -maxdepth 1 -type f -name '*.hcl' | wc -l)" -eq 4
+          required_policies=(
+            auditor.hcl
+            business-admin-template.hcl
+            workload-read-template.hcl
+            beyvra-execution-template.hcl
+            beyvra-observability-deny.hcl
+          )
+          for policy in "${required_policies[@]}"; do
+            test -s "codestra/runtime-v1/policies/${policy}"
+          done
+          policy_count="$(find codestra/runtime-v1/policies -maxdepth 1 -type f -name '*.hcl' | wc -l)"
+          test "${policy_count}" -ge "${#required_policies[@]}"
+          test "$(find codestra/runtime-v1/policies -maxdepth 1 -type f -name '*.hcl' -empty | wc -l)" -eq 0
           ! grep -R -E 'capabilities[[:space:]]*=[[:space:]]*\[[^]]*"sudo"' codestra/runtime-v1/policies
           ! grep -R -E 'path[[:space:]]+"\*"' codestra/runtime-v1/policies
           grep -q 'kv-__BUSINESS__/data/__APPLICATION__/__ENVIRONMENT__' codestra/runtime-v1/policies/workload-read-template.hcl
