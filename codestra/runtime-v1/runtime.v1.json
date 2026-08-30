@@ -34,7 +34,12 @@
     "superset",
     "openbao"
   ],
-  "environmentScope": ["development", "test", "staging", "production"],
+  "environmentScope": [
+    "development",
+    "test",
+    "staging",
+    "production"
+  ],
   "storage": {
     "backend": "integrated-raft",
     "haRequired": true,
@@ -56,7 +61,7 @@
     "human": {
       "method": "keycloak-oidc",
       "issuer": "https://auth.codestra.co/realms/codestra",
-      "clientId": "openbao-admin",
+      "clientId": "openbao-secrets",
       "authorizationCode": true,
       "pkce": "S256",
       "mfaRequiredForPrivilegedRoles": true,
@@ -134,7 +139,10 @@
   "beyvraHighSecurityCompartment": {
     "mount": "kv-beyvra/",
     "transitMount": "transit-beyvra/",
-    "allowedWorkloads": ["beyvra-backend", "beyvra-execution-worker"],
+    "allowedWorkloads": [
+      "beyvra-backend",
+      "beyvra-execution-worker"
+    ],
     "deniedReaders": [
       "grafana",
       "superset",
