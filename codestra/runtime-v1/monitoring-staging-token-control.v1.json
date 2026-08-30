@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "control_id": "codestra-monitoring-staging-token-control-v1",
+  "status": "SOURCE_PREPARED_NOT_APPLIED",
+  "environment": "staging",
+  "secret_authority": "OpenBao",
+  "identity_authority": "Keycloak",
+  "client": {
+    "client_id": "monitoring-readonly",
+    "audience": "middleware-api",
+    "client_secret_path": "kv-platform/data/observability/middleware/staging/keycloak-client",
+    "client_secret_committed_to_git": false
+  },
+  "runtime_tokens": [
+    {"name": "metrics", "scope": "metrics.read", "endpoint": "/metrics", "maximum_ttl_seconds": 300, "file_mode": "0600", "persist_after_evidence": false},
+    {"name": "health", "scope": "health.read", "endpoint": "/v1/runtime/safety", "maximum_ttl_seconds": 300, "file_mode": "0600", "persist_after_evidence": false}
+  ],
+  "prometheus_oauth2": {
+    "uses_client_secret_file": true,
+    "requested_scope": "default-read-only-client-policy",
+    "stores_access_token": false,
+    "automatic_short_lived_token_refresh": true
+  },
+  "evidence_rules": {
+    "token_values_in_logs": false,
+    "token_values_in_artifacts": false,
+    "client_secret_in_artifacts": false,
+    "token_hashes_may_be_recorded": true,
+    "runtime_evidence_checksum_is_not_a_secret": true
+  },
+  "denied_authorities": [
+    "provider-write credentials",
+    "advertising spend",
+    "customer communication delivery",
+    "social publishing",
+    "Beyvra trade signing",
+    "Odoo write credentials"
+  ],
+  "activation": {
+    "policy_applied": false,
+    "role_created": false,
+    "client_secret_written": false,
+    "tokens_issued": false,
+    "production_approved": false
+  }
+}
