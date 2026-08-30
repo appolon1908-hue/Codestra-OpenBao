@@ -5,6 +5,7 @@ on:
     paths:
       - 'codestra/**'
       - 'scripts/validate_codestra_openbao.py'
+      - 'scripts/validate_codestra_openbao_oidc.py'
       - '.github/workflows/validate-codestra-openbao.yml'
       - '.github/workflows/upstream-source-sync.yml'
       - 'CODESTRA_UPSTREAM.json'
@@ -13,6 +14,7 @@ on:
     paths:
       - 'codestra/**'
       - 'scripts/validate_codestra_openbao.py'
+      - 'scripts/validate_codestra_openbao_oidc.py'
       - '.github/workflows/validate-codestra-openbao.yml'
       - '.github/workflows/upstream-source-sync.yml'
       - 'CODESTRA_UPSTREAM.json'
@@ -44,8 +46,13 @@ jobs:
         env:
           PYTHONPYCACHEPREFIX: /tmp/codestra-openbao-pycache
         run: |
-          python -m py_compile scripts/validate_codestra_openbao.py
+          python -m py_compile scripts/validate_codestra_openbao.py scripts/validate_codestra_openbao_oidc.py
           python scripts/validate_codestra_openbao.py
+
+      - name: Validate Keycloak OIDC, PKCE, private-edge and negative-test contract
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/codestra-openbao-pycache
+        run: python scripts/validate_codestra_openbao_oidc.py
 
       - name: Prove policy templates are bounded and placeholder-driven
         run: |
@@ -83,7 +90,9 @@ jobs:
           import json
           runtime = json.load(open('codestra/runtime-v1/runtime.v1.json', encoding='utf-8'))
           control = json.load(open('codestra/runtime-v1/secret-control-plane.v1.json', encoding='utf-8'))
+          oidc = json.load(open('codestra/runtime-v1/oidc-plan.v1.json', encoding='utf-8'))
           assert runtime['activation'] and all(value is False for value in runtime['activation'].values())
           assert control['releaseGates'] and all(value is False for value in control['releaseGates'].values())
+          assert oidc['activation'] and all(value is False for value in oidc['activation'].values())
           assert runtime['beyvraHighSecurityCompartment']['brokerExchangeCustodySigningEnabledByDefault'] is False
           PY
