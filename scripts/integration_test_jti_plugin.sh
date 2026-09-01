@@ -21,6 +21,10 @@ chmod 0700 "$build_dir" "$response_dir"
 
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
+  # The plugin and its checksum are deliberately installed read-only. Restore
+  # owner write permission before secure deletion so cleanup cannot turn a
+  # successful security test into a false failure on non-root CI runners.
+  find "$work" -type f -exec chmod u+w {} + 2>/dev/null || true
   find "$work" -type f -exec shred -u {} +
   find "$work" -depth -type d -empty -delete
 }

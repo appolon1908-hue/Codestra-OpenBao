@@ -11,7 +11,7 @@
 *.unseal
 *.token
 *.secret
-secrets/
+/secrets/
 credentials/
 runtime-data/
 bao-data/

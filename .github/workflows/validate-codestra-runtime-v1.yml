@@ -151,7 +151,10 @@ jobs:
           assert 'default_lease_ttl = "15m"' in config
           assert 'max_lease_ttl = "1h"' in config
           assert 'unauthenticated_metrics_access = false' in config
-          assert 'disable_mlock = false' in config
+          # OpenBao v2.6.2 removed mlock support and rejects the legacy
+          # disable_mlock directive. Memory protection is enforced through the
+          # repository's swap gate instead.
+          assert 'disable_mlock' not in config
           assert 'raw_storage_endpoint = false' in config
           assert 'path "secret/' not in policies
           assert 'path "pki_observability/' not in policies
