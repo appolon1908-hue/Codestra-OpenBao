@@ -130,3 +130,13 @@ must add safety gates. Runtime deployment remains prohibited until staging,
 backup/restore, immutable release and production preflight evidence pass. SSH
 configuration and SSH firewall rules are explicitly outside scope and must
 remain unchanged.
+
+## Remediation branch update
+
+The remediation branch now contains CODEOWNERS, Dependabot configuration,
+repository-wide immutable action validation, the eleven uniquely named CI
+contexts, protected plan/saved-plan apply workflows, release signing and
+provenance, backup/isolated restore and drift workflows. Those source gaps are
+closed on the remediation branch. Their remote protection, environment,
+private-runner and runtime execution evidence remain open until promotion; this
+inventory does not retroactively mark them deployed.

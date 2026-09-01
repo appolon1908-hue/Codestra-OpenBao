@@ -11,7 +11,8 @@ Git is **not** a secret store. This repository must never contain live API keys,
 The branch promotion model is:
 
 ```text
-main -> staging -> production
+remediation/openbao-production-completion-v1
+  -> development -> test -> staging -> production -> main
 ```
 
 Secret namespaces must also remain environment-separated. A staging identity must never be able to read a production secret path.
@@ -129,4 +130,8 @@ OpenBao is intended to hold or issue runtime material such as:
 
 ## Current runtime state
 
-This repository bootstrap is source-only. OpenBao deployment, initialization, unseal/recovery configuration, Keycloak integration, secret creation, secret migration, and production credential activation are not enabled by the upstream-source import.
+The canonical production host currently runs one uninitialized OpenBao v2.6.1
+Raft node. It is not production-certified. The desired v2.6.2 source,
+initialization, unseal/recovery custody, Keycloak workload integration, audit
+device, secret engines, secret migration and production consumer activation
+remain disabled until their evidence gates pass.

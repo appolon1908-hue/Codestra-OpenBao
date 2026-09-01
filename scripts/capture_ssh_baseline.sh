@@ -34,7 +34,7 @@ if effective.returncode != 0:
     raise SystemExit('cannot read effective SSH configuration')
 
 firewall_commands = [
-    ['nft', 'list', 'ruleset'],
+    ['nft', '--stateless', 'list', 'ruleset'],
     ['iptables-save'],
     ['ip6tables-save'],
 ]
@@ -45,13 +45,27 @@ for command in firewall_commands:
     except FileNotFoundError:
         continue
     if result.returncode == 0:
-        ssh_lines = b'\n'.join(
-            line for line in result.stdout.splitlines()
-            if b'22' in line or b'ssh' in line.lower()
-        )
+        ssh_lines = []
+        for line in result.stdout.splitlines():
+            lowered = line.lower()
+            if command[0] == 'nft':
+                matches = (
+                    b'tcp dport 22' in lowered or b'udp dport 22' in lowered or
+                    b'tcp sport 22' in lowered or b'udp sport 22' in lowered
+                )
+            else:
+                tokens = lowered.split()
+                matches = any(
+                    tokens[index] in {b'--dport', b'--sport', b'--dports', b'--sports'} and
+                    b'22' in tokens[index + 1].split(b',')
+                    for index in range(len(tokens) - 1)
+                )
+            if matches:
+                ssh_lines.append(line.strip())
+        normalized = b'\n'.join(ssh_lines)
         firewall.append({
             'command': command[0],
-            'sshRuleSha256': hashlib.sha256(ssh_lines).hexdigest(),
+            'sshRuleSha256': hashlib.sha256(normalized).hexdigest(),
         })
 
 document = {
