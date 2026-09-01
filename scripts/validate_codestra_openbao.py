@@ -334,6 +334,7 @@ def validate_hcl_configs() -> None:
             'default_lease_ttl = "15m"',
             'max_lease_ttl = "1h"',
             'raw_storage_endpoint = false',
+            'plugin_directory = "/openbao/plugins"',
         ):
             if fragment not in config:
                 fail(f"{path.name} omits control: {fragment}")

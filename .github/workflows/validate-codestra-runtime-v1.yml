@@ -177,6 +177,7 @@ jobs:
           CODESTRA_WORKLOAD_CA_FILE: /tmp/codestra-workload-ca.pem
           OPENBAO_OPERATOR_CERT_FILE: /tmp/openbao-operator-cert.pem
           OPENBAO_OPERATOR_KEY_FILE: /tmp/openbao-operator-key.pem
+          OPENBAO_PLUGIN_DIR: /tmp/openbao-plugins
         run: |
           for file in \
             "$OPENBAO_SERVER_CERT_FILE" \

@@ -25,6 +25,8 @@ class ReleaseGuardTests(unittest.TestCase):
             "deploy/compose/compose.yaml",
             "monitoring/alerts/openbao-alerts.yml",
             "openbao/openbao.hcl",
+            "plugins/codestra-jwt-replay/backend.go",
+            "plugins/codestra-jwt-replay/plugin.v1.json",
             "scripts/apply.sh",
         ):
             self.assertIn(required, manifest)

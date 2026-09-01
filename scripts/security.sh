@@ -21,6 +21,7 @@ gitleaks git . --no-banner --redact --config .gitleaks.toml \
 [[ "$(jq 'length' "$scan_dir/history.json")" == 0 ]]
 
 python3 scripts/verify_vulnerability_gate.py
+python3 scripts/verify_plugin_supply_chain.py
 (cd artifacts/supply-chain && sha256sum -c SHA256SUMS)
 
 echo 'OPENBAO_SECRET_SCAN=PASS'

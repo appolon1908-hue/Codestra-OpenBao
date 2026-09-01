@@ -18,6 +18,13 @@ peer_count="$(jq '[.data.config.servers[] | select(.voter == true)] | length' <<
 desired_peers="$(jq -r .desiredVotingNodes "config/environments/${environment}/environment.json")"
 (( peer_count >= desired_peers ))
 
+plugin_name="$(jq -r '.name' plugins/codestra-jwt-replay/plugin.v1.json)"
+plugin_sha="$(jq -r '.binarySha256' plugins/codestra-jwt-replay/plugin.v1.json)"
+plugin_binary="${OPENBAO_PLUGIN_BINARY:?set exact deployed plugin binary path}"
+[[ -f "$plugin_binary" && ! -L "$plugin_binary" ]]
+[[ "$(basename "$plugin_binary")" == "$plugin_name" ]]
+[[ "$(sha256sum "$plugin_binary" | awk '{print $1}')" == "$plugin_sha" ]]
+
 container_json="$(docker inspect "$container")"
 [[ "$(jq -r '.[0].State.Running' <<<"$container_json")" == true ]]
 actual_image="$(jq -r '.[0].Image' <<<"$container_json")"
@@ -28,6 +35,9 @@ jq -e --arg expected "ghcr.io/openbao/openbao@${expected_digest}" \
 [[ "$(jq -r '.[0].Config.Labels["com.codestra.source-sha"] // ""' <<<"$container_json")" == "$expected_source" ]]
 [[ "$(jq -r '.[0].HostConfig.ReadonlyRootfs' <<<"$container_json")" == true ]]
 [[ "$(jq '.[0].HostConfig.PortBindings // {} | length' <<<"$container_json")" == 0 ]]
+plugin_mount_source="$(jq -r '.[0].Mounts[] | select(.Destination == "/openbao/plugins" and .RW == false) | .Source' <<<"$container_json")"
+[[ -n "$plugin_mount_source" ]]
+[[ "$(realpath "$plugin_mount_source")" == "$(realpath "$(dirname "$plugin_binary")")" ]]
 
 for network_key in client cluster observability; do
   expected_network="$(jq -r --arg key "$network_key" '.networks[$key]' "config/environments/${environment}/environment.json")"
@@ -50,7 +60,8 @@ jq -n \
   --arg nodeId "$node_id" \
   --argjson votingPeers "$peer_count" \
   --argjson desiredVotingPeers "$desired_peers" \
-  '{schemaVersion:1,environment:$environment,sourceSha:$sourceSha,imageDigest:$imageDigest,initialized:true,sealed:false,storage:"raft",clusterIdSha256:$clusterIdSha256,nodeId:$nodeId,votingPeers:$votingPeers,desiredVotingPeers:$desiredVotingPeers,privateNativePorts:true,readOnlyRoot:true,memoryProtection:"PASS",secretValuesIncluded:false,preflight:"PASS"}' \
+  --arg jtiPluginSha256 "$plugin_sha" \
+  '{schemaVersion:1,environment:$environment,sourceSha:$sourceSha,imageDigest:$imageDigest,initialized:true,sealed:false,storage:"raft",clusterIdSha256:$clusterIdSha256,nodeId:$nodeId,votingPeers:$votingPeers,desiredVotingPeers:$desiredVotingPeers,jtiReplayPluginBinarySha256:$jtiPluginSha256,privateNativePorts:true,readOnlyRoot:true,memoryProtection:"PASS",secretValuesIncluded:false,preflight:"PASS"}' \
   > "$evidence"
 chmod 400 "$evidence"
 
@@ -61,4 +72,5 @@ echo 'RAFT_HEALTH=PASS'
 echo "RAFT_VOTING_PEERS=${peer_count}"
 echo 'IMAGE_DIGEST_MATCH=PASS'
 echo 'SOURCE_SHA_MATCH=PASS'
+echo 'JTI_REPLAY_PLUGIN_BINARY=PASS'
 echo 'NATIVE_PUBLIC_PORTS=0'

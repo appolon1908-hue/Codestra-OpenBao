@@ -39,8 +39,9 @@ def expression(role: dict) -> str:
         "pb.Auth{"
         f"display_name: '{identity}-{environment}', "
         f"policies: ['{policy}'], "
-        "lease_options: pb.LeaseOptions{TTL: 300, renewable: true, MaxTTL: 300}, "
-        "explicit_max_ttl: 300, "
+        "lease_options: pb.LeaseOptions{TTL: 300000000000, renewable: true, "
+        "issue_time: now, MaxTTL: 300000000000}, "
+        "explicit_max_ttl: 300000000000, "
         "no_default_policy: true"
         "}"
     )
@@ -70,6 +71,7 @@ def build(authority: dict, auth_config: dict) -> dict:
         "schemaVersion": 1,
         "status": "PREPARED_DISABLED",
         "mount": auth_config["mount"],
+        "authPlugin": auth_config["authPluginManifest"],
         "mountConfiguration": {
             "oidc_discovery_url": auth_config["discoveryUrl"],
             "bound_issuer": auth_config["boundIssuer"],
@@ -78,8 +80,8 @@ def build(authority: dict, auth_config: dict) -> dict:
         },
         "requiredClaims": auth_config["requiredClaims"],
         "maximumJwtLifetimeSeconds": auth_config["maximumJwtLifetimeSeconds"],
-        "jtiReplayCacheRequired": True,
-        "jtiReplayCacheImplemented": False,
+        "jtiReplayCacheRequired": auth_config["jtiReplayCacheRequired"],
+        "jtiReplayCacheImplemented": auth_config["jtiReplayCacheImplemented"],
         "runtimeApplyAuthorized": False,
         "roles": sorted(roles, key=lambda role: role["name"]),
     }

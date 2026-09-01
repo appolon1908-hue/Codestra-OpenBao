@@ -37,12 +37,15 @@ openssl x509 -req -in "$verify_dir/server-csr" \
 chmod 644 "$verify_dir"/*
 mkdir "$verify_dir/data"
 chmod 777 "$verify_dir/data"
+mkdir "$verify_dir/plugins"
+chmod 755 "$verify_dir/plugins"
 
 set +e
 timeout --signal=TERM 8s docker run --rm --cap-drop ALL \
   --name codestra-openbao-config-verify \
   -v "$repo_root/openbao/openbao.hcl:/openbao/config/openbao.hcl:ro" \
   -v "$verify_dir/data:/openbao/data" \
+  -v "$verify_dir/plugins:/openbao/plugins:ro" \
   -v "$verify_dir/server-cert:/run/secrets/openbao-server-cert:ro" \
   -v "$verify_dir/server-key:/run/secrets/openbao-server-key:ro" \
   -v "$verify_dir/ca-cert:/run/secrets/codestra-client-ca:ro" \

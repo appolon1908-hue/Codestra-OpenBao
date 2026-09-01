@@ -14,7 +14,8 @@
   "wildcardClientMatchingAllowed": false,
   "celClaimValidationRequired": true,
   "jtiReplayCacheRequired": true,
-  "jtiReplayCacheImplemented": false,
+  "jtiReplayCacheImplemented": true,
+  "authPluginManifest": "plugins/codestra-jwt-replay/plugin.v1.json",
   "defaultRole": "",
   "roleSource": "config/workload-secret-authority.v1.json",
   "runtimeApplyAuthorized": false

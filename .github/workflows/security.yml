@@ -62,6 +62,12 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Set up exact plugin build toolchain
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.13'
+          cache: true
+          cache-dependency-path: upstream/go.sum
       - name: Install checksum-verified vulnerability scanner
         run: scripts/install_ci_tools.sh trivy
       - name: Scan exact linux/amd64 digest and enforce current VEX
@@ -72,3 +78,9 @@ jobs:
           trivy image --scanners vuln --format json --output "$report" \
             --platform linux/amd64 "$image"
           python3 scripts/verify_vulnerability_gate.py --report "$report"
+          plugin_dir="$RUNNER_TEMP/plugin-vulnerability"
+          mkdir -p "$plugin_dir"
+          OPENBAO_PLUGIN_OUTPUT="$plugin_dir/codestra-jwt-replay" scripts/build_jti_plugin.sh
+          plugin_report="$(mktemp)"
+          trivy rootfs --scanners vuln --format json --output "$plugin_report" "$plugin_dir"
+          python3 scripts/verify_plugin_supply_chain.py --report "$plugin_report"

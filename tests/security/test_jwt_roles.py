@@ -29,6 +29,10 @@ class JwtRoleTests(unittest.TestCase):
             "'azp' in claims", "'iat' in claims", "'exp' in claims",
             "'jti' in claims", "'codestra_environment' in claims",
             "int(claims.exp) - int(claims.iat) <= 300",
+            "TTL: 300000000000",
+            "issue_time: now",
+            "MaxTTL: 300000000000",
+            "explicit_max_ttl: 300000000000",
             "no_default_policy: true",
         ]
         for role in self.generated["roles"]:
@@ -39,9 +43,13 @@ class JwtRoleTests(unittest.TestCase):
             self.assertEqual(role["payload"]["bound_audiences"], ["openbao"])
             self.assertFalse(role["runtimeApplyAuthorized"])
 
-    def test_replay_gate_remains_fail_closed_until_implemented(self) -> None:
+    def test_replay_gate_is_implemented_but_runtime_remains_fail_closed(self) -> None:
         self.assertTrue(self.generated["jtiReplayCacheRequired"])
-        self.assertFalse(self.generated["jtiReplayCacheImplemented"])
+        self.assertTrue(self.generated["jtiReplayCacheImplemented"])
+        self.assertEqual(
+            self.generated["authPlugin"],
+            "plugins/codestra-jwt-replay/plugin.v1.json",
+        )
         self.assertFalse(self.generated["runtimeApplyAuthorized"])
 
 

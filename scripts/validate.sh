@@ -28,7 +28,7 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 
-for root in (Path('config'), Path('openbao'), Path('artifacts/supply-chain')):
+for root in (Path('config'), Path('openbao'), Path('plugins'), Path('artifacts/supply-chain')):
     for path in root.rglob('*.json'):
         json.loads(path.read_text(encoding='utf-8'))
 print('OPENBAO_JSON_VALIDATION=PASS')
@@ -40,6 +40,7 @@ CODESTRA_SOURCE_SHA=0000000000000000000000000000000000000000 \
 OPENBAO_CONFIG_FILE=/tmp/openbao.hcl \
 OPENBAO_DATA_DIR=/tmp/openbao-data \
 OPENBAO_AUDIT_DIR=/tmp/openbao-audit \
+OPENBAO_PLUGIN_DIR=/tmp/openbao-plugins \
 OPENBAO_SERVER_CERT_FILE=/tmp/server-cert \
 OPENBAO_SERVER_KEY_FILE=/tmp/server-key \
 CODESTRA_CLIENT_CA_FILE=/tmp/client-ca \

@@ -52,18 +52,44 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
     roles_path = ROOT / "openbao/auth/jwt-roles.v1.json"
     audit_path = ROOT / "config/audit/audit.v1.json"
     engine_path = ROOT / "config/secrets/engines.v1.json"
+    plugin_path = ROOT / "plugins/codestra-jwt-replay/plugin.v1.json"
     authority = load(authority_path)
     roles = load(roles_path)
     audit = load(audit_path)
     engines = load(engine_path)
+    plugin = load(plugin_path)
     environment_config = load(ROOT / f"config/environments/{environment}/environment.json")
     mounts = data(load(live_dir / "mounts.json"))
     auths = data(load(live_dir / "auth.json"))
     audits = data(load(live_dir / "audit.json"))
     live_policies = list_values(load(live_dir / "policies.json"))
+    live_plugin = data(load(live_dir / "plugin-info.json", {}))
 
     operations = []
     warnings = []
+
+    plugin_payload = {
+        "name": plugin["name"],
+        "type": plugin["type"],
+        "command": plugin["command"],
+        "version": plugin["version"],
+        "sha256": plugin["binarySha256"],
+    }
+    if not live_plugin:
+        operations.append({
+            "action": "create",
+            "kind": "auth_plugin",
+            "name": plugin["name"],
+            "payload": plugin_payload,
+        })
+    elif selected(live_plugin, ("name", "command", "version", "sha256", "builtin")) != {
+        "name": plugin["name"],
+        "command": plugin["command"],
+        "version": plugin["version"],
+        "sha256": plugin["binarySha256"],
+        "builtin": False,
+    }:
+        warnings.append("auth plugin version identity differs; overwriting an immutable plugin version is prohibited")
 
     desired_engine = next(item for item in engines["engines"] if item["path"] == "codestra/")
     live_mount = mounts.get("codestra/") if isinstance(mounts, dict) else None
@@ -80,20 +106,35 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
 
     auth_mount = roles["mount"] + "/"
     live_auth = auths.get(auth_mount) if isinstance(auths, dict) else None
+    auth_compatible = live_auth is None
     if live_auth is None:
         operations.append({
             "action": "create",
             "kind": "auth_method",
             "name": auth_mount,
-            "payload": {"path": roles["mount"], "type": "jwt"},
+            "payload": {
+                "path": roles["mount"],
+                "type": "plugin",
+                "plugin_name": plugin["name"],
+                "plugin_version": plugin["version"],
+                "plugin_sha256": plugin["binarySha256"],
+            },
         })
-    elif live_auth.get("type") != "jwt":
-        warnings.append(f"{auth_mount} exists with a non-JWT type; automatic replacement is prohibited")
+    elif (
+        live_auth.get("type") != plugin["name"]
+        or live_auth.get("plugin_version") != plugin["version"]
+        or live_auth.get("running_plugin_version") != plugin["version"]
+        or live_auth.get("running_sha256") != plugin["binarySha256"]
+    ):
+        auth_compatible = False
+        warnings.append(f"{auth_mount} does not run the exact replay-protected plugin; automatic replacement is prohibited")
+    else:
+        auth_compatible = True
 
     live_config = data(load(live_dir / "jwt-config.json", {}))
     desired_config = roles["mountConfiguration"]
     config_keys = ("oidc_discovery_url", "bound_issuer", "default_role", "jwt_supported_algs")
-    if selected(live_config, config_keys) != selected(desired_config, config_keys):
+    if auth_compatible and selected(live_config, config_keys) != selected(desired_config, config_keys):
         operations.append({
             "action": "update" if live_config else "create",
             "kind": "auth_config",
@@ -113,7 +154,7 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
             "not_before_leeway", "bound_audiences",
         )
         desired_payload = role["payload"]
-        if selected(live_role, role_keys) != selected(desired_payload, role_keys):
+        if auth_compatible and selected(live_role, role_keys) != selected(desired_payload, role_keys):
             operations.append({
                 "action": "update" if live_role else "create",
                 "kind": "jwt_role",
@@ -185,6 +226,7 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
             roles.get("runtimeApplyAuthorized"),
             audit.get("runtimeApplyAuthorized"),
             engines.get("runtimeApplyAuthorized"),
+            plugin.get("runtimeApplyAuthorized"),
             environment_config.get("runtimeApplyAuthorized"),
         )
     )
@@ -200,6 +242,7 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
             str(roles_path.relative_to(ROOT)): sha(roles_path),
             str(audit_path.relative_to(ROOT)): sha(audit_path),
             str(engine_path.relative_to(ROOT)): sha(engine_path),
+            str(plugin_path.relative_to(ROOT)): sha(plugin_path),
         },
         "counts": {"create": create_count, "change": change_count, "destroy": 0},
         "summary": summary,

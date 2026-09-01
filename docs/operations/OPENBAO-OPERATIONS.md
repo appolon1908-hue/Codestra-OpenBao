@@ -43,9 +43,10 @@ reinitialize, replace recovery material or reset Raft to resolve drift.
 8. Apply only the downloaded saved plan; never regenerate it during apply.
 9. Read back every operation, runtime identity and SSH hash baseline.
 
-Apply supports only creation/update of the reviewed KV v2 engine, JWT auth,
-CEL roles, policies and file audit device. Delete, mount replacement, audit
-disable and initialization are unsupported.
+Apply supports only exact-checksum registration of the replay-protected JWT
+plugin, creation of its auth mount, and creation/update of the reviewed KV v2
+engine, CEL roles, policies and file audit device. Delete, plugin-version
+overwrite, mount replacement, audit disable and initialization are unsupported.
 
 ## Shutdown and restart
 

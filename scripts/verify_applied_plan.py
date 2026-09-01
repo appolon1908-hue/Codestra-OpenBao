@@ -32,7 +32,14 @@ def verify(operation: dict) -> None:
     kind = operation["kind"]
     name = operation["name"]
     payload = operation["payload"]
-    if kind == "secret_engine":
+    if kind == "auth_plugin":
+        item = data(json_command(
+            "plugin", "info", f"-version={payload['version']}", "auth", payload["name"]
+        ))
+        expected = selected(payload, ("name", "command", "version", "sha256"))
+        if selected(item, tuple(expected)) != expected or item.get("builtin") is not False:
+            raise ValueError("auth_plugin_readback_mismatch")
+    elif kind == "secret_engine":
         mounts = data(json_command("secrets", "list"))
         item = mounts.get(name)
         if not item or item.get("type") != "kv" or (item.get("options") or {}).get("version") != "2":
@@ -40,7 +47,13 @@ def verify(operation: dict) -> None:
     elif kind == "auth_method":
         auths = data(json_command("auth", "list"))
         item = auths.get(name)
-        if not item or item.get("type") != "jwt":
+        if (
+            not item
+            or item.get("type") != payload["plugin_name"]
+            or item.get("plugin_version") != payload["plugin_version"]
+            or item.get("running_plugin_version") != payload["plugin_version"]
+            or item.get("running_sha256") != payload["plugin_sha256"]
+        ):
             raise ValueError("auth_method_readback_mismatch")
     elif kind == "policy":
         if command("policy", "read", name).strip() != payload["policy"].strip():

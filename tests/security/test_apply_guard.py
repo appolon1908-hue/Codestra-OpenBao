@@ -13,6 +13,7 @@ class ApplyGuardTests(unittest.TestCase):
             "sha256sum -c", ".planSourceSha", ".counts.destroy", ".runtimeApplyAuthorized",
             "jtiReplayCacheImplemented", "verify_environment_approval.sh",
             "APPLY_EXACT_OPENBAO_PLAN_", "verify_applied_plan.py",
+            "OPENBAO_PLUGIN_BINARY", "bao plugin register", "-plugin-name=",
         ):
             self.assertIn(required, source)
         self.assertNotIn("operator init", source)

@@ -21,9 +21,19 @@ mounts="$(bao secrets list -format=json)"
 auths="$(bao auth list -format=json)"
 audits="$(bao audit list -format=json)"
 policies="$(bao policy list -format=json)"
+plugin_name="$(jq -r '.name' plugins/codestra-jwt-replay/plugin.v1.json)"
+plugin_version="$(jq -r '.version' plugins/codestra-jwt-replay/plugin.v1.json)"
+plugin_sha="$(jq -r '.binarySha256' plugins/codestra-jwt-replay/plugin.v1.json)"
+plugin_info="$(bao plugin info -format=json -version="$plugin_version" auth "$plugin_name")"
 [[ "$(jq -r '.["codestra/"].type' <<<"$mounts")" == kv ]]
 [[ "$(jq -r '.["codestra/"].options.version' <<<"$mounts")" == 2 ]]
-[[ "$(jq -r '.["jwt-codestra/"].type' <<<"$auths")" == jwt ]]
+[[ "$(jq -r '.["jwt-codestra/"].type' <<<"$auths")" == "$plugin_name" ]]
+[[ "$(jq -r '.["jwt-codestra/"].plugin_version' <<<"$auths")" == "$plugin_version" ]]
+[[ "$(jq -r '.["jwt-codestra/"].running_plugin_version' <<<"$auths")" == "$plugin_version" ]]
+[[ "$(jq -r '.["jwt-codestra/"].running_sha256' <<<"$auths")" == "$plugin_sha" ]]
+[[ "$(jq -r '.command' <<<"$plugin_info")" == "$plugin_name" ]]
+[[ "$(jq -r '.sha256' <<<"$plugin_info")" == "$plugin_sha" ]]
+[[ "$(jq -r '.builtin' <<<"$plugin_info")" == false ]]
 [[ "$(jq -r '.["file-audit/"].type' <<<"$audits")" == file ]]
 
 expected_policy_count="$(jq --arg environment "$environment" '[.policies[] | select(.environment == $environment)] | length' config/policies/generated-policy-index.v1.json)"
@@ -50,4 +60,5 @@ echo 'RAFT_HEALTH=PASS'
 echo "RAFT_VOTING_PEERS=${peer_count}"
 echo 'AUDIT=PASS'
 echo 'POLICY_ENFORCEMENT_SOURCE_MATCH=PASS'
+echo 'JTI_REPLAY_PLUGIN=PASS'
 echo 'NATIVE_PUBLIC_PORTS=0'

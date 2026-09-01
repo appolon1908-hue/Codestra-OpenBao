@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-AUTHORITY_ROOTS = ("config", "deploy", "monitoring", "openbao", "scripts")
+AUTHORITY_ROOTS = ("config", "deploy", "monitoring", "openbao", "plugins", "scripts")
 CERTIFICATION_FILES = {
     "development": "development-certification.json",
     "test": "test-certification.json",
@@ -124,6 +124,7 @@ def build(expected_source_sha: str, evidence_dir: Path) -> dict:
     checksum = authority_checksum(files)
     evidence = require_certifications(evidence_dir, checksum)
     upstream = load_object(ROOT / "CODESTRA_UPSTREAM.json")
+    plugin = load_object(ROOT / "plugins/codestra-jwt-replay/plugin.v1.json")
     supply = ROOT / "artifacts/supply-chain"
     return {
         "schemaVersion": 1,
@@ -135,9 +136,22 @@ def build(expected_source_sha: str, evidence_dir: Path) -> dict:
         "imageReference": upstream["image_reference"],
         "imageDigest": upstream["image_digest"],
         "imageArchitecture": upstream["image_architecture"],
+        "authPlugin": {
+            "name": plugin["name"],
+            "version": plugin["version"],
+            "sha256": plugin["binarySha256"],
+            "upstreamSha": plugin["upstreamSha"],
+            "goVersion": plugin["goVersion"],
+        },
         "sbomSha256": file_sha(supply / "openbao-2.6.2-linux-amd64.cdx.json"),
         "vulnerabilityReportSha256": file_sha(supply / "openbao-2.6.2-linux-amd64.trivy.json"),
         "vexSha256": file_sha(supply / "openbao-2.6.2-linux-amd64.vex.json"),
+        "authPluginSbomSha256": file_sha(
+            supply / "codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json"
+        ),
+        "authPluginVulnerabilityReportSha256": file_sha(
+            supply / "codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json"
+        ),
         "certificationEvidenceSha256": {
             name: file_sha(evidence_dir / CERTIFICATION_FILES[name]) for name in evidence
         },

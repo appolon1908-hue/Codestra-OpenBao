@@ -23,6 +23,12 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Set up exact plugin build toolchain
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.13'
+          cache: true
+          cache-dependency-path: upstream/go.sum
       - name: Pull and verify the exact official linux/amd64 image
         run: |
           image="$(jq -r .image_reference CODESTRA_UPSTREAM.json)"
@@ -38,6 +44,12 @@ jobs:
           version="$(docker run --rm --platform linux/amd64 "$image" version)"
           grep -Fq "OpenBao v${expected_version}" <<<"$version"
           grep -Fq "(${expected_source})" <<<"$version"
+      - name: Reproduce the exact replay-protected JWT plugin
+        run: |
+          output="$RUNNER_TEMP/codestra-jwt-replay"
+          OPENBAO_PLUGIN_OUTPUT="$output" scripts/build_jti_plugin.sh
+          test "$(sha256sum "$output" | awk '{print $1}')" = \
+            "$(jq -r .binarySha256 plugins/codestra-jwt-replay/plugin.v1.json)"
 
   sbom-provenance:
     name: OpenBao / sbom-provenance
@@ -48,6 +60,12 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Set up exact plugin build toolchain
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.13'
+          cache: true
+          cache-dependency-path: upstream/go.sum
       - name: Install checksum-verified SBOM generator
         run: scripts/install_ci_tools.sh syft
       - name: Regenerate and verify exact package inventory
@@ -57,4 +75,11 @@ jobs:
           image="$(jq -r .image_reference CODESTRA_UPSTREAM.json)"
           syft scan "registry:${image}" -o "cyclonedx-json=${sbom}" > /dev/null
           python3 scripts/verify_sbom.py --candidate "$sbom"
+          plugin_dir="$RUNNER_TEMP/plugin-sbom"
+          mkdir -p "$plugin_dir"
+          OPENBAO_PLUGIN_OUTPUT="$plugin_dir/codestra-jwt-replay" scripts/build_jti_plugin.sh
+          plugin_sbom="$(mktemp)"
+          syft scan "file:$plugin_dir/codestra-jwt-replay" \
+            -o "cyclonedx-json=$plugin_sbom" >/dev/null
+          python3 scripts/verify_plugin_supply_chain.py --sbom "$plugin_sbom"
           (cd artifacts/supply-chain && sha256sum -c SHA256SUMS)

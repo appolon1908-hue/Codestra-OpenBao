@@ -6,6 +6,7 @@ log_format = "json"
 default_lease_ttl = "5m"
 max_lease_ttl = "1h"
 raw_storage_endpoint = false
+plugin_directory = "/openbao/plugins"
 
 api_addr = "https://bao.codestra.media"
 cluster_addr = "https://codestra-bao-production-01:8201"

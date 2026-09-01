@@ -15,6 +15,8 @@ class PreflightGuardTests(unittest.TestCase):
             "RepoDigests",
             "validate_host_memory.py",
             "PortBindings",
+            "OPENBAO_PLUGIN_BINARY",
+            'Destination == "/openbao/plugins"',
             "OPENBAO_PREFLIGHT=PASS",
         ):
             self.assertIn(required, source)

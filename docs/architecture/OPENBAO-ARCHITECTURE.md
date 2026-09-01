@@ -4,7 +4,7 @@
 
 ```text
 administrative browser -> authenticated Caddy edge -> private OpenBao client network
-Keycloak workload JWT  -> private OpenBao API       -> scoped token/lease
+Keycloak workload JWT  -> replay-protected auth plugin -> scoped token/lease
 OpenBao Agent          -> atomic service-owned file -> workload
 three OpenBao voters   -> private 8201 Raft network
 OpenBao audit file     -> Alloy -> Loki -> Grafana
@@ -28,6 +28,11 @@ OpenBao-side contract but not the edge deployment.
 All networks are external deployment inputs. Compose publishes no host port.
 TLS 1.3 and client-certificate verification are enforced on the native API;
 8201 is private to Raft peers.
+
+The server image remains the exact official digest. The separately built,
+SBOM-scanned `codestra-jwt-replay` binary is mounted read-only under
+`/openbao/plugins`, registered by exact version and checksum, and read back
+before authentication is certified.
 
 ## Storage and seal model
 

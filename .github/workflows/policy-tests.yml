@@ -39,13 +39,21 @@ jobs:
   integration-tests:
     name: OpenBao / integration-tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out exact source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
+      - name: Set up exact plugin build toolchain
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.13'
+          cache: true
+          cache-dependency-path: upstream/go.sum
       - name: Compile and read back policy and JWT CEL roles in isolated OpenBao
         run: scripts/integration_test.sh
+      - name: Prove stateful JTI replay denial and negative JWT boundaries
+        run: scripts/integration_test_jti_plugin.sh
       - name: Run isolated runtime-contract regressions
         run: python3 -m unittest discover -s tests/integration -p 'test_*.py' -v

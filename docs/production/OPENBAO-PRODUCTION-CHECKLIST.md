@@ -5,10 +5,13 @@ The only valid states in this checklist are `PASS`, `WARNING`, `FAIL` and
 
 ## Source and release
 
-- PASS — exact OpenBao v2.6.2 Git/image identity and linux/amd64 SBOM.
+- PASS — exact OpenBao v2.6.2 Git/image identity plus image and replay-plugin
+  linux/amd64 SBOMs.
 - PASS — local configuration, policy, HCL, Compose, secret and history scans.
 - PASS — exact-digest fresh vulnerability scan has zero unresolved exploitable
   HIGH/CRITICAL findings under expiring VEX review.
+- PASS — replay plugin has zero HIGH/CRITICAL findings, a reproducible exact
+  binary digest and isolated sequential/concurrent/negative JWT tests.
 - WARNING — remediation branch is local and not yet protected/promoted.
 - FAIL — immutable signed production release and provenance have not run.
 - FAIL — required checks/protections/environments are not yet installed on all
@@ -19,7 +22,7 @@ The only valid states in this checklist are `PASS`, `WARNING`, `FAIL` and
 - FAIL — development runtime certification.
 - FAIL — test runtime certification.
 - FAIL — production-equivalent three-voter staging deployment.
-- FAIL — Keycloak authentication and negative JWT/replay suite.
+- FAIL — live Keycloak authentication and environment-bound denial suite.
 - FAIL — rotation, revocation and cross-environment denial runtime evidence.
 - FAIL — soak, failure injection, backup and isolated restore.
 

@@ -27,6 +27,7 @@ for query in \
   'openbao/auth/jwt-roles.v1.json:.runtimeApplyAuthorized' \
   'config/audit/audit.v1.json:.runtimeApplyAuthorized' \
   'config/secrets/engines.v1.json:.runtimeApplyAuthorized' \
+  'plugins/codestra-jwt-replay/plugin.v1.json:.runtimeApplyAuthorized' \
   "config/environments/${environment}/environment.json:.runtimeApplyAuthorized"; do
   file="${query%%:*}"
   expression="${query#*:}"
@@ -36,6 +37,15 @@ done
 [[ "$(jq -r '.jtiReplayCacheImplemented' openbao/auth/jwt-roles.v1.json)" == true ]]
 
 scripts/verify_environment_approval.sh
+
+if jq -e '.operations[] | select(.kind == "auth_plugin")' "$plan" >/dev/null; then
+  plugin_binary="${OPENBAO_PLUGIN_BINARY:?plan requires exact plugin binary}"
+  [[ -f "$plugin_binary" && ! -L "$plugin_binary" ]]
+  expected_plugin_command="$(jq -r '.operations[] | select(.kind == "auth_plugin") | .payload.command' "$plan")"
+  expected_plugin_sha="$(jq -r '.operations[] | select(.kind == "auth_plugin") | .payload.sha256' "$plan")"
+  [[ "$(basename "$plugin_binary")" == "$expected_plugin_command" ]]
+  [[ "$(sha256sum "$plugin_binary" | awk '{print $1}')" == "$expected_plugin_sha" ]]
+fi
 
 if [[ "$environment" == production ]]; then
   backup_evidence="${OPENBAO_PRECHANGE_BACKUP_EVIDENCE:?production requires backup evidence}"
@@ -63,12 +73,21 @@ while IFS= read -r operation; do
   payload="$apply_dir/payload.json"
   jq '.payload' <<<"$operation" > "$payload"
   case "$kind:$action" in
+    auth_plugin:create)
+      bao plugin register \
+        -sha256="$(jq -r '.sha256' "$payload")" \
+        -command="$(jq -r '.command' "$payload")" \
+        -version="$(jq -r '.version' "$payload")" \
+        auth "$(jq -r '.name' "$payload")" >/dev/null
+      ;;
     secret_engine:create)
       bao secrets enable -path="$(jq -r '.path' "$payload")" \
         -description="$(jq -r '.description' "$payload")" -version=2 kv >/dev/null
       ;;
     auth_method:create)
-      bao auth enable -path="$(jq -r '.path' "$payload")" jwt >/dev/null
+      bao auth enable -path="$(jq -r '.path' "$payload")" \
+        -plugin-name="$(jq -r '.plugin_name' "$payload")" \
+        -plugin-version="$(jq -r '.plugin_version' "$payload")" plugin >/dev/null
       ;;
     policy:create|policy:update)
       jq -r '.policy' "$payload" > "$apply_dir/policy.hcl"
@@ -94,12 +113,13 @@ while IFS= read -r operation; do
 done < <(jq -c '
   .operations |
   sort_by(
-    if .kind == "secret_engine" then 0
-    elif .kind == "auth_method" then 1
-    elif .kind == "policy" then 2
-    elif .kind == "auth_config" then 3
-    elif .kind == "jwt_role" then 4
-    elif .kind == "audit_device" then 5
+    if .kind == "auth_plugin" then 0
+    elif .kind == "secret_engine" then 1
+    elif .kind == "auth_method" then 2
+    elif .kind == "policy" then 3
+    elif .kind == "auth_config" then 4
+    elif .kind == "jwt_role" then 5
+    elif .kind == "audit_device" then 6
     else 99 end
   )[]
 ' "$plan")

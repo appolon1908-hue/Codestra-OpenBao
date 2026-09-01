@@ -38,6 +38,12 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.13'
+      - name: Set up exact plugin build toolchain
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.13'
+          cache: true
+          cache-dependency-path: upstream/go.sum
       - name: Verify exact protected source and release identifier
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
@@ -61,15 +67,26 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
         run: |
           release_dir="$RUNNER_TEMP/release"
-          mkdir -p "$release_dir/package"
+          mkdir -p "$release_dir/package/plugins"
           python3 scripts/build_release.py --expected-source-sha "$EXPECTED_SOURCE_SHA" \
             --output "$release_dir/package/release-manifest.json"
+          OPENBAO_PLUGIN_OUTPUT="$release_dir/package/plugins/codestra-jwt-replay" \
+            scripts/build_jti_plugin.sh
+          mkdir -p "$release_dir/package/supply-chain"
+          install -m 0444 \
+            artifacts/supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json \
+            artifacts/supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json \
+            "$release_dir/package/supply-chain/"
           git archive --format=tar --output="$release_dir/package/source.tar" "$EXPECTED_SOURCE_SHA"
-          (cd "$release_dir/package" && sha256sum release-manifest.json source.tar > SHA256SUMS)
+          (cd "$release_dir/package" && sha256sum \
+            release-manifest.json source.tar \
+            plugins/codestra-jwt-replay plugins/codestra-jwt-replay.sha256 \
+            supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json \
+            supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json > SHA256SUMS)
           source_epoch="$(git show -s --format=%ct "$EXPECTED_SOURCE_SHA")"
           tar --sort=name --mtime="@${source_epoch}" --owner=0 --group=0 --numeric-owner \
             -C "$release_dir/package" -czf "$release_dir/${RELEASE_ID}.tar.gz" \
-            SHA256SUMS release-manifest.json source.tar
+            SHA256SUMS release-manifest.json source.tar plugins supply-chain
           (cd "$release_dir" && sha256sum "${RELEASE_ID}.tar.gz" > "${RELEASE_ID}.tar.gz.sha256")
       - name: Install pinned Sigstore client
         uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62

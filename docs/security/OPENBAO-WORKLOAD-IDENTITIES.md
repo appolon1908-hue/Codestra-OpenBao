@@ -24,4 +24,6 @@ and audit evidence exist. General repository membership is not eligibility.
 
 Negative tests must prove wrong issuer, audience, environment, client, expiry,
 lifetime, missing claim and replay are denied. Revoking one workload must not
-affect unrelated workloads.
+affect unrelated workloads. The isolated source suite proves those JWT and JTI
+boundaries; each deployed environment must repeat them against its real
+Keycloak identity before certification.

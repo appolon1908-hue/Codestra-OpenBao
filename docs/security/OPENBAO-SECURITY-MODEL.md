@@ -21,11 +21,20 @@ workload `azp`, exact `codestra_environment`, and non-empty `iss`, `sub`, `aud`,
 `azp`, `iat`, `exp`, `jti` and environment claims. `exp - iat` is at most 300
 seconds. Wildcard client matching and the default policy are disabled.
 
-OpenBao v2.6.2 compiles and enforces the CEL claim expression, but native JWT
-authentication does not provide the required stateful one-time JTI replay
-cache. Source therefore records `jtiReplayCacheImplemented=false` and refuses
-runtime authorization. A reviewed stateful enforcement point plus positive and
-negative replay tests is required before this gate can become true.
+The exact upstream OpenBao v2.6.2 JWT backend is wrapped by the external
+`codestra-jwt-replay` auth plugin. After upstream signature, issuer, audience
+and CEL validation succeeds, the wrapper claims a SHA-256 identifier derived
+from issuer, client, environment and JTI in transactional Raft storage. Raw
+tokens and raw JTIs are never stored or logged. Duplicate and transaction-
+collision requests fail closed; expired hash entries are bounded and cleaned.
+
+The plugin is built reproducibly from the exact upstream SHA with Go 1.25.13
+and a checksum-locked `golang.org/x/crypto` security override. Its binary
+digest is `609c33db8bcbedc8a3e37ed336efe635cb9ef00b6a633fa91f8f2fd08d2d1db3`.
+Sequential replay, sixteen-way concurrent replay and wrong/missing claim tests
+pass in isolated OpenBao. `jtiReplayCacheImplemented=true` records that source
+result; runtime application remains unauthorized until the environment gates
+and protected apply are complete.
 
 ## Authorization and delivery
 

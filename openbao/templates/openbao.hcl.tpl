@@ -6,6 +6,7 @@ log_format = "json"
 default_lease_ttl = "5m"
 max_lease_ttl = "1h"
 raw_storage_endpoint = false
+plugin_directory = "/openbao/plugins"
 
 api_addr = "__API_ADDRESS__"
 cluster_addr = "__CLUSTER_ADDRESS__"

@@ -7,9 +7,9 @@ Assessment date: 2026-09-01
 | Repository authority | WARNING | complete remediation source is not yet promoted/protected |
 | Upstream provenance | PASS | exact v2.6.2 tag commit and image identity verified |
 | Image immutability | PASS | desired source uses exact linux/amd64 manifest digest only |
-| SBOM | PASS | CycloneDX inventory regenerated and matched |
+| SBOM | PASS | image and replay-plugin CycloneDX inventories regenerated and matched |
 | Provenance | FAIL | protected release attestation has not run |
-| Vulnerability gate | PASS | zero unresolved exploitable HIGH/CRITICAL under expiring VEX |
+| Vulnerability gate | PASS | image has zero unresolved exploitable HIGH/CRITICAL under expiring VEX; plugin has zero observed HIGH/CRITICAL |
 | Secret scan | PASS | working tree and full Git history clean |
 | HCL/config validation | PASS | semantic server startup and policy format tests pass |
 | TLS | FAIL | desired TLS 1.3 source exists; live native listener is cleartext |
@@ -19,7 +19,7 @@ Assessment date: 2026-09-01
 | HA | FAIL | desired three voters; live bootstrap has one container |
 | Initialization safety | PASS | only guarded initializer exists and refuses initialized/ambiguous state |
 | Seal/recovery | FAIL | runtime custody and restart proof absent |
-| Keycloak authentication | FAIL | source roles compile; live authentication not configured |
+| Keycloak authentication | FAIL | source roles and replay plugin pass isolated positive/negative tests; live authentication not configured |
 | Audience validation | FAIL | source tested; live negative test absent |
 | Environment isolation | FAIL | source tested; live cross-environment denial absent |
 | Policy least privilege | PASS | generated exact policies and negative source tests pass |
@@ -45,16 +45,15 @@ Assessment date: 2026-09-01
 | Production read-back | FAIL | live source/image/config do not match desired authority |
 | SSH unchanged | PASS | normalized before/after SSH files, effective config and port-22 rules match |
 
-Open critical issues: 7
+Open critical issues: 6
 
-1. Stateful JTI replay protection is not implemented.
-2. Production-equivalent three-voter staging and production HA are unavailable.
-3. Production has active unencrypted swap.
-4. Backup, immutable off-host storage and isolated restore evidence are absent.
-5. Live native TLS/mTLS, audit and observability do not match desired source.
-6. Protected environments/private runners and promotion-branch protections are
+1. Production-equivalent three-voter staging and production HA are unavailable.
+2. Production has active unencrypted swap.
+3. Backup, immutable off-host storage and isolated restore evidence are absent.
+4. Live native TLS/mTLS, Keycloak auth, audit and observability do not match desired source.
+5. Protected environments/private runners and promotion-branch protections are
    not configured.
-7. The live uninitialized v2.6.1 bootstrap differs from the desired immutable
+6. The live uninitialized v2.6.1 bootstrap differs from the desired immutable
    v2.6.2 release and the observed edge is Nginx rather than required Caddy.
 
 `OVERALL_VERDICT=NO_GO`

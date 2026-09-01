@@ -6,7 +6,7 @@ reviewed deployment evidence. The canonical hostname is
 `bao.codestra.media`; the current DNS target is `37.27.128.39`.
 
 The source is deliberately fail-closed. `runtimeApplyAuthorized=false` remains
-set while staging, replay prevention, backup/restore, HA, host-memory and
+set while runtime identity, staging, backup/restore, HA, host-memory and
 production preflight gates are incomplete. Merging source does not initialize
 OpenBao, apply a policy, migrate a secret, deploy a container or enable a
 provider/business effect.
@@ -42,9 +42,10 @@ Run:
 scripts/validate.sh
 scripts/security.sh
 scripts/integration_test.sh
+scripts/integration_test_jti_plugin.sh
 ```
 
-The integration test uses an ephemeral local OpenBao dev container. It does
+The integration tests use ephemeral local OpenBao dev containers. They do
 not contact or mutate a deployed environment.
 
 ## Runtime safety

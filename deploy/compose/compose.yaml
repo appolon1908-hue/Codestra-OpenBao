@@ -27,6 +27,7 @@ services:
       - ${OPENBAO_CONFIG_FILE:?set reviewed config path}:/openbao/config/openbao.hcl:ro
       - ${OPENBAO_DATA_DIR:?set existing or explicitly provisioned data directory}:/openbao/data
       - ${OPENBAO_AUDIT_DIR:?set protected audit directory}:/openbao/audit
+      - ${OPENBAO_PLUGIN_DIR:?set exact release plugin directory}:/openbao/plugins:ro
     secrets:
       - openbao-server-cert
       - openbao-server-key

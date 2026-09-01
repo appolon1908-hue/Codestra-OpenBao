@@ -24,6 +24,7 @@ class BuildPlanTests(unittest.TestCase):
         for name, value in {
             "mounts.json": {}, "auth.json": {}, "audit.json": {},
             "policies.json": [], "jwt-config.json": {}, "jwt-roles.json": [],
+            "plugin-info.json": {},
         }.items():
             (root / name).write_text(json.dumps(value), encoding="utf-8")
         return root
@@ -35,6 +36,10 @@ class BuildPlanTests(unittest.TestCase):
         self.assertTrue(plan["planOnly"])
         self.assertFalse(plan["runtimeApplyAuthorized"])
         self.assertFalse(any(item["action"] == "delete" for item in plan["operations"]))
+        plugin = next(item for item in plan["operations"] if item["kind"] == "auth_plugin")
+        self.assertEqual(plugin["payload"]["sha256"], "609c33db8bcbedc8a3e37ed336efe635cb9ef00b6a633fa91f8f2fd08d2d1db3")
+        auth = next(item for item in plan["operations"] if item["kind"] == "auth_method")
+        self.assertEqual(auth["payload"]["plugin_name"], "codestra-jwt-replay")
 
     def test_incompatible_mount_warns_and_never_replaces(self) -> None:
         live = self.live()
@@ -50,6 +55,13 @@ class BuildPlanTests(unittest.TestCase):
         self.assertTrue(names)
         self.assertTrue(all("staging" in name for name in names))
         self.assertFalse(any("production" in name for name in names))
+
+    def test_builtin_jwt_mount_is_never_replaced_or_configured(self) -> None:
+        live = self.live()
+        (live / "auth.json").write_text(json.dumps({"jwt-codestra/": {"type": "jwt"}}))
+        plan = MODULE.build("staging", live, "d" * 40)
+        self.assertTrue(any("automatic replacement is prohibited" in item for item in plan["warnings"]))
+        self.assertFalse(any(item["kind"] in {"auth_method", "auth_config", "jwt_role"} for item in plan["operations"]))
 
 
 if __name__ == "__main__":
