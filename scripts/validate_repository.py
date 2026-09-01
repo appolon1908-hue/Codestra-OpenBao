@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shlex
@@ -11,6 +12,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+SYNC_WORKFLOW_SHA256 = "45bab632487aeeb298220c97b4c9aec6ccc28a314f5cecc463915c83d794eca2"
 UPSTREAM_PATH = ROOT / "CODESTRA_UPSTREAM.json"
 SYNC_WORKFLOW_PATH = ROOT / ".github/workflows/upstream-source-sync.yml"
 VALIDATE_WORKFLOW_PATH = ROOT / ".github/workflows/validate.yml"
@@ -32,7 +34,12 @@ SANITIZED_SECRET_FIXTURES = {
 def _logical_shell_lines(source: str) -> tuple[str, ...]:
     records: list[str] = []
     pending = ""
+    heredocs: list[str] = []
     for raw in source.splitlines():
+        if heredocs:
+            if raw.strip() == heredocs[0]:
+                heredocs.pop(0)
+            continue
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -42,6 +49,11 @@ def _logical_shell_lines(source: str) -> tuple[str, ...]:
             pending = pending[:-1]
             continue
         records.append(pending)
+        for match in re.finditer(
+            r"(?<!<)<<-?(?!<)\s*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z_][A-Za-z0-9_]*))",
+            pending,
+        ):
+            heredocs.append(next(value for value in match.groups() if value))
         pending = ""
     if pending:
         records.append(pending)
@@ -52,9 +64,7 @@ def reject_protected_pushes(source: str) -> None:
     approved = ["git", "push", "origin", "HEAD:refs/heads/${SYNC_BRANCH}"]
     approved_count = 0
     for line in _logical_shell_lines(source):
-        candidate_probe = re.sub(r"[\"']", "", line)
-        candidate_probe = re.sub(r"\\([^\n])", r"\1", candidate_probe)
-        if re.search(r"\bgit\b.*\bpush\b", candidate_probe) is None:
+        if line in {'remote_branch="$(', ')"'}:
             continue
         try:
             lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|<>")
@@ -66,6 +76,24 @@ def reject_protected_pushes(source: str) -> None:
         if words == approved:
             approved_count += 1
             continue
+        for word in words:
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=(?:git|push)", word):
+                raise ValueError("protected_branch_sync_forbidden:dynamic_command")
+        segments: list[list[str]] = [[]]
+        for word in words:
+            if word and set(word) <= set("();&|"):
+                segments.append([])
+            else:
+                segments[-1].append(word)
+        if re.match(r"^(?:(?:elif|if|while)\s+)?(?:\(\(|\[\[)", line) is None:
+            for segment in segments:
+                while segment and (
+                    segment[0] in {"!", "do", "elif", "if", "then", "until", "while"}
+                    or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", segment[0])
+                ):
+                    segment = segment[1:]
+                if segment and ("$" in segment[0] or "`" in segment[0]):
+                    raise ValueError("protected_branch_sync_forbidden:dynamic_command")
         git_push = False
         for index, word in enumerate(words):
             if Path(word).name != "git":
@@ -76,6 +104,10 @@ def reject_protected_pushes(source: str) -> None:
                 command_index += 2 if option in {
                     "-c", "-C", "--git-dir", "--work-tree"
                 } else 1
+            if command_index < len(words) and (
+                "$" in words[command_index] or "`" in words[command_index]
+            ):
+                raise ValueError("protected_branch_sync_forbidden:dynamic_command")
             if command_index < len(words) and words[command_index] == "push":
                 git_push = True
                 break
@@ -83,7 +115,12 @@ def reject_protected_pushes(source: str) -> None:
             re.search(r"\bgit\s+push\b", re.sub(r"\\([^\n])", r"\1", word))
             for word in words
         )
-        if git_push or nested_push:
+        dynamic_push = any(
+            word == "push" and index > 0
+            and ("$" in words[index - 1] or "`" in words[index - 1])
+            for index, word in enumerate(words)
+        )
+        if git_push or nested_push or dynamic_push:
             raise ValueError("protected_branch_sync_forbidden:push_not_exact")
     if approved_count != 1:
         raise ValueError("approved_sync_push_count_invalid")
@@ -174,6 +211,8 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     for token in required:
         if token not in source:
             raise ValueError(f"reviewed_sync_boundary_missing:{token}")
+    if hashlib.sha256(source.encode()).hexdigest() != SYNC_WORKFLOW_SHA256:
+        raise ValueError("sync_workflow_digest_mismatch")
 
 
 def validate_workflow_pins(source: str) -> None:
