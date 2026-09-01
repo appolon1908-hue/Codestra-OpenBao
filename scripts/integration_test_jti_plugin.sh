@@ -18,6 +18,16 @@ response_dir="$work/responses"
 mkdir "$plugin_dir" "$build_dir" "$response_dir"
 chmod 0755 "$work" "$plugin_dir"
 chmod 0700 "$build_dir" "$response_dir"
+cat >"$work/integration.hcl" <<'EOF'
+audit "file" "integration-audit" {
+  description = "Ephemeral OpenBao integration-test audit device."
+  options {
+    file_path = "/tmp/openbao-integration-audit.jsonl"
+    log_raw = "false"
+  }
+}
+EOF
+chmod 0444 "$work/integration.hcl"
 
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -39,9 +49,10 @@ install -m 0555 "$build_dir/$plugin" "$plugin_dir/$plugin"
 docker run --detach --rm --name "$container" \
   --publish 127.0.0.1::8200 \
   --volume "$plugin_dir:/openbao/plugins:ro" \
+  --volume "$work/integration.hcl:/openbao/integration.hcl:ro" \
   --env BAO_DEV_ROOT_TOKEN_ID=codestra-ci-root \
   "$image" server -dev -dev-listen-address=0.0.0.0:8200 \
-  -dev-plugin-dir=/openbao/plugins > /dev/null
+  -dev-plugin-dir=/openbao/plugins -config=/openbao/integration.hcl > /dev/null
 port="$(docker port "$container" 8200/tcp | awk -F: 'NR == 1 {print $NF}')"
 [[ "$port" =~ ^[0-9]+$ ]]
 base="http://127.0.0.1:${port}/v1"
@@ -97,6 +108,8 @@ code="$(curl -sS -o "$response_dir/role-response.json" -w '%{http_code}' \
 policy_path="$(jq -r --arg policy "$policy" '.policies[] | select(.policyName == $policy) | .path' config/policies/generated-policy-index.v1.json)"
 docker cp "$policy_path" "$container:/tmp/policy.hcl" >/dev/null
 bao_exec policy write "$policy" /tmp/policy.hcl >/dev/null
+bao_exec audit list -format=json >"$response_dir/audit-devices.json"
+jq -e '.["integration-audit/"].type == "file"' "$response_dir/audit-devices.json" >/dev/null
 bao_exec secrets enable -path=codestra -version=2 kv >/dev/null
 bao_exec kv put codestra/staging/middleware/api/probe payload=synthetic-middleware-api >/dev/null
 bao_exec kv put codestra/staging/middleware/worker/email/probe payload=synthetic-cross-service >/dev/null
@@ -171,6 +184,13 @@ code="$(curl -sS -o "$response_dir/concurrent-final.json" -w '%{http_code}' \
 [[ "$code" != 200 ]]
 jq -e '.errors == ["JWT replay rejected"]' "$response_dir/concurrent-final.json" >/dev/null
 
+docker cp "$container:/tmp/openbao-integration-audit.jsonl" \
+  "$response_dir/openbao-integration-audit.jsonl" >/dev/null
+jq -s -e '
+  any(.[]; .type == "request" and .auth.display_name == "root") and
+  ([.[] | select(.type == "response" and ((.error // "") | length > 0))] | length >= 5)
+' "$response_dir/openbao-integration-audit.jsonl" >/dev/null
+
 echo 'OPENBAO_JTI_PLUGIN_INTEGRATION=PASS'
 echo 'JWT_TOKEN_TTL=300'
 echo 'JWT_SEQUENTIAL_REPLAY=DENIED'
@@ -183,3 +203,4 @@ echo 'CROSS_ENVIRONMENT_ACCESS=DENIED'
 echo 'ANONYMOUS_ACCESS=DENIED'
 echo 'SYSTEM_ADMIN_ACCESS=DENIED'
 echo 'PATH_TRAVERSAL_ACCESS=DENIED'
+echo 'ROOT_TOKEN_USAGE_DETECTION=PASS'

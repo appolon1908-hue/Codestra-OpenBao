@@ -23,6 +23,7 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "ANONYMOUS_ACCESS=DENIED",
             "SYSTEM_ADMIN_ACCESS=DENIED",
             "PATH_TRAVERSAL_ACCESS=DENIED",
+            "ROOT_TOKEN_USAGE_DETECTION=PASS",
         ):
             self.assertIn(marker, replay)
         for negative in (
@@ -37,6 +38,14 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "missingJTI",
         ):
             self.assertIn(negative, replay)
+
+    def test_jti_integration_uses_declarative_audit_device(self) -> None:
+        replay = (ROOT / "scripts/integration_test_jti_plugin.sh").read_text()
+        self.assertIn('audit "file" "integration-audit"', replay)
+        self.assertIn('-config=/openbao/integration.hcl', replay)
+        self.assertIn('audit list -format=json', replay)
+        self.assertNotIn('audit enable', replay)
+        self.assertNotIn('unsafe_allow_api_audit_creation', replay)
 
 
 if __name__ == "__main__":
