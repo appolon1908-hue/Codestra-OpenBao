@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -89,6 +90,14 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         assert "Validate candidate policy with trusted base code" in trusted
         assert "python3 trusted/scripts/validate_workload_secret_authority.py" in trusted
         assert "python3 candidate/" not in trusted
+        assert "test ! -L candidate/config" in trusted
+        assert "candidate_root=\"$(realpath -e candidate)\"" in trusted
+        assert "policy_path=\"$(realpath -e candidate/config/" in trusted
+        assert (
+            'test "$policy_path" = \\\n'
+            '            "$candidate_root/config/workload-secret-authority.v1.json"'
+            in trusted
+        )
         assert '--volume "$PWD/trusted:/trusted:ro"' in trusted
         assert "--config=/trusted/.github/gitleaks-trusted.toml" in trusted
         assert (
@@ -99,6 +108,22 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         assert "--config=/repo/.gitleaks.toml" not in trusted
         assert "needs: candidate-source-security" in candidate
         assert "python3 scripts/validate_workload_secret_authority.py" in candidate
+
+    def test_symlinked_policy_ancestor_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            candidate = temporary_root / "candidate"
+            trusted_config = temporary_root / "trusted" / "config"
+            candidate.mkdir()
+            trusted_config.mkdir(parents=True)
+            trusted_policy = trusted_config / "workload-secret-authority.v1.json"
+            trusted_policy.write_text("{}", encoding="utf-8")
+            (candidate / "config").symlink_to(trusted_config, target_is_directory=True)
+            with self.assertRaises(SystemExit):
+                VALIDATOR.resolve_policy_path(
+                    candidate,
+                    candidate / "config" / "workload-secret-authority.v1.json",
+                )
 
     def test_cross_environment_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)

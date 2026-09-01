@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 
@@ -27,6 +28,32 @@ FORBIDDEN_PATH_PARTS = {"*", "..", "//"}
 
 def fail(message: str) -> None:
     raise SystemExit(f"OPENBAO_SOURCE_AUTHORITY=FAIL: {message}")
+
+
+def resolve_policy_path(candidate_root: Path, policy_path: Path) -> Path:
+    """Require the policy to be the exact regular file beneath a real root."""
+    root = Path(os.path.abspath(candidate_root))
+    policy = Path(os.path.abspath(policy_path))
+    expected_relative = Path("config/workload-secret-authority.v1.json")
+    try:
+        relative = policy.relative_to(root)
+    except ValueError:
+        fail("policy path escapes candidate root")
+    if relative != expected_relative:
+        fail("policy path is not the canonical candidate policy")
+    for component in (root, root / "config", policy):
+        if component.is_symlink():
+            fail("policy path contains a symbolic link")
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved_policy = policy.resolve(strict=True)
+    except OSError as exc:
+        fail(str(exc))
+    if not resolved_policy.is_file():
+        fail("candidate policy is not a regular file")
+    if resolved_policy != resolved_root / expected_relative:
+        fail("resolved policy escapes candidate root")
+    return resolved_policy
 
 
 def exactly_matches(actual: object, expected: object) -> bool:
@@ -171,9 +198,10 @@ def validate(policy: dict) -> None:
         fail("required evidence drift")
 
 
-def main(policy_path: Path = POLICY) -> int:
+def main(policy_path: Path = POLICY, candidate_root: Path = ROOT) -> int:
     try:
-        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        trusted_policy_path = resolve_policy_path(candidate_root, policy_path)
+        policy = json.loads(trusted_policy_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         fail(str(exc))
     validate(policy)
@@ -186,5 +214,6 @@ def main(policy_path: Path = POLICY) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", type=Path, default=POLICY)
+    parser.add_argument("--candidate-root", type=Path, default=ROOT)
     arguments = parser.parse_args()
-    raise SystemExit(main(arguments.policy))
+    raise SystemExit(main(arguments.policy, arguments.candidate_root))
