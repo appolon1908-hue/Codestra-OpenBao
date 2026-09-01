@@ -167,12 +167,15 @@ jobs:
               (r'SK[0-9a-fA-F]{32}', 'TWILIO_KEY_FIXTURE_INVALID', 0),
               (r'xox(?:a|b|p|r|s)-[A-Za-z0-9-]{12,}', 'SLACK_TOKEN_FIXTURE_INVALID', 0),
               (r'xapp-[A-Za-z0-9-]{12,}', 'SLACK_APP_TOKEN_FIXTURE_INVALID', 0),
+              # Preserve fixture syntax while making generic client-secret
+              # assignments explicitly non-credential material.
+              (r'(?i)(["\']?[A-Za-z0-9_]*client_secret["\']?\s*[:=]\s*["\']?)[^"\'\s,<}\]]+', r'\1<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>', 0),
               # Private-key blocks are only neutralized in fixture/docs paths.
               (r'-----BEGIN [^-\n]*PRIVATE KEY-----.*?-----END [^-\n]*PRIVATE KEY-----', 'PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
               (r'-----BEGIN PGP PRIVATE' + r' KEY BLOCK-----.*?-----END PGP PRIVATE' + r' KEY BLOCK-----', 'PGP_PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
           ]
 
-          for p in Path('upstream').rglob('*'):
+          for p in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix()):
               if not p.is_file():
                   continue
               rel=p.relative_to('upstream')
@@ -230,6 +233,7 @@ jobs:
               'sanitization_scope': 'upstream test/example/documentation fixtures only; production/runtime logic is not intentionally modified',
           }
           if sanitizations:
+              sanitizations.sort(key=lambda item: (item['path'], item['rule']))
               lock['sanitizations']=sanitizations
           lock_path.write_text(json.dumps(lock, indent=2) + '\n')
           PY

@@ -159,6 +159,34 @@ class RepositorySecurityTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 1, "PGP")
 
+    def test_client_secret_fixture_sanitization_matches_scanner_policy(self) -> None:
+        scanner = ROOT / "scripts/reject_repository_secrets.sh"
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "upstream/tests/oidc.conf"
+            fixture.parent.mkdir(parents=True)
+            fixture.write_text('oidc_client_' + 'secret = "test"\n')
+            rejected = subprocess.run(
+                [scanner, directory], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(rejected.returncode, 1)
+            fixture.write_text(
+                'oidc_client_' + 'secret = "<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>"\n'
+            )
+            accepted = subprocess.run(
+                [scanner, directory], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(accepted.returncode, 0)
+
+    def test_sanitization_ledger_order_is_deterministic(self) -> None:
+        self.assertIn(
+            "for p in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix())",
+            self.sync_source,
+        )
+        self.assertIn(
+            "sanitizations.sort(key=lambda item: (item['path'], item['rule']))",
+            self.sync_source,
+        )
+
     def test_generated_sync_pr_explicitly_dispatches_validation(self) -> None:
         self.assertEqual(
             self.sync_document["permissions"],

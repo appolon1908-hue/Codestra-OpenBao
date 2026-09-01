@@ -81,6 +81,9 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         'git switch --create "$SYNC_BRANCH" --track',
         "(( existing_sync_branch == 1 )) || exit 0",
         "Existing sync branch differs from deterministic rebuild.",
+        "for p in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix())",
+        "sanitizations.sort(key=lambda item: (item['path'], item['rule']))",
+        "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
         'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main',
         "Multiple open pull requests claim the sync branch.",
     )
@@ -119,6 +122,8 @@ def validate_secret_scanner(source: str) -> None:
         raise ValueError("imported_tests_must_be_secret_scanned")
     if re.search(r"grep\s+-[^\n]*I", source):
         raise ValueError("binary_secret_scan_must_not_be_skipped")
+    if "[^[:space:]<\\\"']+" not in source:
+        raise ValueError("sanitized_client_secret_placeholder_must_not_match")
     required = (
         'find "$search_root"',
         '-path "$search_root/.git"',
