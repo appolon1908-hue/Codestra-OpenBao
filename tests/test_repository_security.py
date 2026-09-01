@@ -42,6 +42,21 @@ class RepositorySecurityTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "protected_branch_sync_forbidden"):
             VALIDATOR.validate_sync_workflow(unsafe, self.sync_document)
+        for destination in (
+            "HEAD:refs/heads/main",
+            "HEAD:refs/heads/staging",
+            "HEAD:refs/heads/production",
+            "refs/heads/main",
+        ):
+            with self.subTest(destination=destination):
+                unsafe = self.sync_source.replace(
+                    'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
+                    f"git push origin {destination}",
+                )
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden"
+                ):
+                    VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
 
     def test_workflow_actions_are_immutable(self) -> None:
         validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
@@ -129,6 +144,7 @@ class RepositorySecurityTests(unittest.TestCase):
                 "gh" + "p_" + ("A" * 24),
                 "github" + "_pat_" + ("G" * 24),
                 "AK" + "IA" + ("B" * 16),
+                "AS" + "IA" + ("B" * 16),
                 "hv" + "s." + ("C" * 16),
                 "s." + ("D" * 24),
                 "S" + "K" + ("a" * 32),
@@ -160,6 +176,27 @@ class RepositorySecurityTests(unittest.TestCase):
                 [scanner, root], check=False, capture_output=True, text=True
             )
             self.assertEqual(result.returncode, 1, "PGP")
+
+    def test_temporary_aws_access_key_fixture_is_sanitized_and_scanned(self) -> None:
+        marker = "(?:AKIA|ASIA)[0-9A-Z]{12,}"
+        self.assertIn(marker, self.sync_source)
+        weakened = self.sync_source.replace(marker, "AKIA[0-9A-Z]{12,}")
+        with self.assertRaisesRegex(ValueError, "reviewed_sync_boundary_missing"):
+            VALIDATOR.validate_sync_workflow(weakened, yaml.safe_load(weakened))
+        match = re.search(
+            r"\(r'\(\?:AKIA\|ASIA\)\[0-9A-Z\]\{12,\}',\s*"
+            r"'AWS_ACCESS_KEY_ID_FIXTURE_INVALID',\s*0\)",
+            self.sync_source,
+        )
+        self.assertIsNotNone(match)
+        self.assertEqual(
+            re.sub(
+                r"(?:AKIA|ASIA)[0-9A-Z]{12,}",
+                "AWS_ACCESS_KEY_ID_FIXTURE_INVALID",
+                "ASIA" + ("Q" * 16),
+            ),
+            "AWS_ACCESS_KEY_ID_FIXTURE_INVALID",
+        )
 
     def test_client_secret_fixture_sanitization_matches_scanner_policy(self) -> None:
         scanner = ROOT / "scripts/reject_repository_secrets.sh"

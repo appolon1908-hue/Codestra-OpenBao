@@ -57,8 +57,8 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     if permissions != expected_permissions:
         raise ValueError("sync_permissions_must_only_support_reviewed_pr")
     forbidden_patterns = (
-        r"git\s+push\s+origin\s+HEAD:(?:main|staging|production)(?:\s|$)",
-        r"git\s+push\s+origin\s+(?:main|staging|production)(?:\s|$)",
+        r"git\s+push\s+origin\s+['\"]?HEAD:(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",
+        r"git\s+push\s+origin\s+['\"]?(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",
         r"git\s+pull\s+--rebase\s+origin\s+main",
         r"git\s+push\s+--force",
     )
@@ -84,6 +84,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "for p in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix())",
         "sanitizations.sort(key=lambda item: (item['path'], item['rule']))",
         "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
+        "(?:AKIA|ASIA)[0-9A-Z]{12,}",
         'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main',
         "Multiple open pull requests claim the sync branch.",
     )
@@ -133,6 +134,7 @@ def validate_secret_scanner(source: str) -> None:
         "find_status=$?",
         "secret_scan_status=$?",
         'exit "$secret_scan_status"',
+        "(AKIA|ASIA)[0-9A-Z]{12,}",
     )
     for token in required:
         if token not in source:

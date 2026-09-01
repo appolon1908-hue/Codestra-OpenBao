@@ -166,7 +166,7 @@ jobs:
               (r'(?<![A-Za-z0-9])(?:hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}', 'OPENBAO_TOKEN_FIXTURE_INVALID', 0),
               (r'(?<![A-Za-z0-9])s\.[A-Za-z0-9_-]{16,}', 'OPENBAO_LEGACY_TOKEN_FIXTURE_INVALID', 0),
               # AWS key-shaped examples not fully covered by the earlier pass.
-              (r'AKIA[0-9A-Z]{12,}', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
+              (r'(?:AKIA|ASIA)[0-9A-Z]{12,}', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
               (r'A3T_PROXY_TASK_TEST', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
               (r'wJalrXUtnFEMI/K7MDENG/[A-Za-z0-9/+_=.-]*', 'AWS_SECRET_ACCESS_KEY_FIXTURE_INVALID', 0),
               # Known OAuth/high-entropy upstream test fixture values caught by push protection.
