@@ -98,6 +98,42 @@ class RepositorySecurityTests(unittest.TestCase):
                 ):
                     VALIDATOR.reject_protected_pushes(command)
 
+    def test_redirection_before_refspec_cannot_hide_protected_destination(self) -> None:
+        for command in (
+            "git push origin 2>/dev/null HEAD:refs/heads/main",
+            "git push origin >/dev/null HEAD:refs/heads/staging",
+        ):
+            with self.subTest(command=command):
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden:push_not_exact"
+                ):
+                    VALIDATOR.reject_protected_pushes(command)
+
+    def test_nested_shell_cannot_escape_sync_branch_authority(self) -> None:
+        command = (
+            "bash -c 'SYNC_BRANCH=main; "
+            "git push origin HEAD:refs/heads/${SYNC_BRANCH}'"
+        )
+        with self.assertRaisesRegex(
+            ValueError, "protected_branch_sync_forbidden:push_not_exact"
+        ):
+            VALIDATOR.reject_protected_pushes(command)
+
+    def test_only_exact_approved_push_form_is_allowed(self) -> None:
+        VALIDATOR.reject_protected_pushes(
+            'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"'
+        )
+        for command in (
+            "git -c remote.origin.push=HEAD:refs/heads/main push origin",
+            "git push origin HEAD:refs/heads/{main,topic}",
+            "git push origin HEAD:refs/heads/${SYNC_BRANCH} HEAD:refs/heads/main",
+        ):
+            with self.subTest(command=command):
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden:push_not_exact"
+                ):
+                    VALIDATOR.reject_protected_pushes(command)
+
     def test_sync_branch_destination_is_immutable_and_fully_resolved(self) -> None:
         assignment = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
         self.assertIn(assignment, self.sync_source)
@@ -106,9 +142,7 @@ class RepositorySecurityTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "sync_branch_authority_invalid"):
             VALIDATOR.validate_sync_workflow(reassigned, yaml.safe_load(reassigned))
-        with self.assertRaisesRegex(
-            ValueError, "protected_branch_sync_forbidden:unresolved_refspec"
-        ):
+        with self.assertRaisesRegex(ValueError, "protected_branch_sync_forbidden"):
             VALIDATOR.reject_protected_pushes(
                 "git push origin HEAD:refs/heads/${UNTRUSTED_BRANCH}"
             )
