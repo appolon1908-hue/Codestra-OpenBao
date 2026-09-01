@@ -1,0 +1,4 @@
+title = "Codestra trusted Gitleaks rules"
+
+[extend]
+useDefault = true

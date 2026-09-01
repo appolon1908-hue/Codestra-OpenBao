@@ -89,6 +89,14 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         assert "Validate candidate policy with trusted base code" in trusted
         assert "python3 trusted/scripts/validate_workload_secret_authority.py" in trusted
         assert "python3 candidate/" not in trusted
+        assert '--volume "$PWD/trusted:/trusted:ro"' in trusted
+        assert "--config=/trusted/.github/gitleaks-trusted.toml" in trusted
+        assert (
+            "--gitleaks-ignore-path=/trusted/.github/gitleaks-trusted.ignore"
+            in trusted
+        )
+        assert "--ignore-gitleaks-allow" in trusted
+        assert "--config=/repo/.gitleaks.toml" not in trusted
         assert "needs: candidate-source-security" in candidate
         assert "python3 scripts/validate_workload_secret_authority.py" in candidate
 
