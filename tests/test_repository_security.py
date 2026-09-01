@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -176,6 +178,62 @@ class RepositorySecurityTests(unittest.TestCase):
                 [scanner, directory], check=False, capture_output=True, text=True
             )
             self.assertEqual(accepted.returncode, 0)
+
+    def test_client_secret_sanitization_preserves_supported_syntax(self) -> None:
+        heredoc = self.sync_source.rsplit("python3 - <<'PY'\n", 1)[1].split(
+            "\n          PY", 1
+        )[0]
+        embedded = "\n".join(
+            line[10:] if line.startswith("          ") else line
+            for line in heredoc.splitlines()
+        )
+        tree = ast.parse(embedded)
+        selected = [ast.Import(names=[ast.alias(name="re")])]
+        selected.extend(
+            node
+            for node in tree.body
+            if (
+                isinstance(node, ast.Assign)
+                and any(
+                    isinstance(target, ast.Name)
+                    and target.id == "CLIENT_SECRET_ASSIGNMENT"
+                    for target in node.targets
+                )
+            )
+            or (
+                isinstance(node, ast.FunctionDef)
+                and node.name == "sanitize_client_secret_assignment"
+            )
+        )
+        namespace: dict[str, object] = {}
+        exec(compile(ast.fix_missing_locations(ast.Module(selected, [])), "<sync>", "exec"), namespace)
+        pattern = namespace["CLIENT_SECRET_ASSIGNMENT"]
+        replacement = namespace["sanitize_client_secret_assignment"]
+        self.assertIsInstance(pattern, re.Pattern)
+
+        secret_key = "client_" + "secret"
+        supported = {
+            f'oidc_{secret_key} = "test"':
+                f'oidc_{secret_key} = "<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>"',
+            f"{secret_key}: 'fixture' # kept":
+                f"{secret_key}: '<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>' # kept",
+            f'  "{secret_key}": "fixture",':
+                f'  "{secret_key}": "<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>",',
+        }
+        for original, expected in supported.items():
+            with self.subTest(original=original):
+                self.assertEqual(pattern.sub(replacement, original), expected)
+
+        unsupported = (
+            f'{secret_key} := "test"',
+            f'{secret_key} == "test"',
+            f'"{secret_key}": null',
+            f'{secret_key} = unquoted',
+            f'{secret_key} = "test" + suffix',
+        )
+        for original in unsupported:
+            with self.subTest(original=original):
+                self.assertEqual(pattern.sub(replacement, original), original)
 
     def test_sanitization_ledger_order_is_deterministic(self) -> None:
         self.assertIn(
