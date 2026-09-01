@@ -36,9 +36,10 @@ def _logical_shell_lines(source: str) -> tuple[str, ...]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        pending = f"{pending} {line}".strip()
-        if pending.endswith("\\"):
-            pending = pending[:-1].rstrip()
+        pending = pending + line
+        trailing_backslashes = len(pending) - len(pending.rstrip("\\"))
+        if trailing_backslashes % 2 == 1:
+            pending = pending[:-1]
             continue
         records.append(pending)
         pending = ""
@@ -51,10 +52,14 @@ def reject_protected_pushes(source: str) -> None:
     protected = {"main", "staging", "production"}
     separators = {";", "&&", "||", "|", "&"}
     for line in _logical_shell_lines(source):
-        if re.search(r"\bgit\b.*\bpush\b", line) is None:
+        executable_probe = re.sub(r"\\([^\n])", r"\1", line)
+        if re.search(r"\bgit\b.*\bpush\b", executable_probe) is None:
             continue
         try:
-            words = shlex.split(line, comments=True, posix=True)
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|")
+            lexer.whitespace_split = True
+            lexer.commenters = "#"
+            words = list(lexer)
         except ValueError as exc:
             raise ValueError("sync_shell_parse_failed") from exc
         for index, word in enumerate(words):
