@@ -147,7 +147,7 @@ def validate_workflow_security(path: Path, source: str, document: dict) -> None:
     }
     allowed_write_permissions = {
         "upstream-source-sync.yml": {"actions", "contents", "pull-requests"},
-        "release.yml": {"attestations", "id-token"},
+        "release.yml": {"attestations", "contents", "id-token"},
     }.get(path.name, set())
     if write_permissions != allowed_write_permissions:
         raise ValueError(f"workflow_write_permissions_drift:{path.name}")

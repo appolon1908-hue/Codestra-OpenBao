@@ -224,7 +224,9 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
         },
     }
     if live_audit is None:
-        operations.append({"action": "create", "kind": "audit_device", "name": audit_mount, "payload": audit_payload})
+        warnings.append(
+            "declarative file-audit/ is absent; runtime restart/unseal or SIGHUP is required before apply"
+        )
     else:
         live_options = live_audit.get("options") or {}
         if selected(live_options, tuple(audit_payload["options"])) != audit_payload["options"]:

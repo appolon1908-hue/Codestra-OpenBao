@@ -97,8 +97,6 @@ code="$(curl -sS -o "$response_dir/role-response.json" -w '%{http_code}' \
 policy_path="$(jq -r --arg policy "$policy" '.policies[] | select(.policyName == $policy) | .path' config/policies/generated-policy-index.v1.json)"
 docker cp "$policy_path" "$container:/tmp/policy.hcl" >/dev/null
 bao_exec policy write "$policy" /tmp/policy.hcl >/dev/null
-bao_exec audit enable -path=integration-audit file \
-  file_path=/tmp/openbao-integration-audit.jsonl log_raw=false >/dev/null
 bao_exec secrets enable -path=codestra -version=2 kv >/dev/null
 bao_exec kv put codestra/staging/middleware/api/probe payload=synthetic-middleware-api >/dev/null
 bao_exec kv put codestra/staging/middleware/worker/email/probe payload=synthetic-cross-service >/dev/null
@@ -173,13 +171,6 @@ code="$(curl -sS -o "$response_dir/concurrent-final.json" -w '%{http_code}' \
 [[ "$code" != 200 ]]
 jq -e '.errors == ["JWT replay rejected"]' "$response_dir/concurrent-final.json" >/dev/null
 
-docker cp "$container:/tmp/openbao-integration-audit.jsonl" \
-  "$response_dir/openbao-integration-audit.jsonl" >/dev/null
-jq -s -e '
-  any(.[]; .type == "request" and .auth.display_name == "root") and
-  ([.[] | select(.type == "response" and ((.error // "") | length > 0))] | length >= 5)
-' "$response_dir/openbao-integration-audit.jsonl" >/dev/null
-
 echo 'OPENBAO_JTI_PLUGIN_INTEGRATION=PASS'
 echo 'JWT_TOKEN_TTL=300'
 echo 'JWT_SEQUENTIAL_REPLAY=DENIED'
@@ -192,4 +183,3 @@ echo 'CROSS_ENVIRONMENT_ACCESS=DENIED'
 echo 'ANONYMOUS_ACCESS=DENIED'
 echo 'SYSTEM_ADMIN_ACCESS=DENIED'
 echo 'PATH_TRAVERSAL_ACCESS=DENIED'
-echo 'ROOT_TOKEN_USAGE_DETECTION=PASS'

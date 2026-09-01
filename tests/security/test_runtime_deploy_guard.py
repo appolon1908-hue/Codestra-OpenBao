@@ -20,6 +20,7 @@ class RuntimeDeployGuardTests(unittest.TestCase):
             "previous_container",
             "RAFT_DATA_DELETED=NO",
             "verify_ssh_unchanged.py",
+            "verify_tls_material.sh",
         ):
             self.assertIn(required, source)
         for forbidden in ("rm -rf", "volume rm", "operator init", "raft snapshot restore"):
@@ -47,6 +48,16 @@ class RuntimeDeployGuardTests(unittest.TestCase):
         self.assertIn("openbao-runtime-plugin-${{ inputs.expected_source_sha }}", workflow)
         self.assertIn("Production is not initialized", workflow)
         self.assertIn("persist-credentials: false", workflow)
+        self.assertIn("OPENBAO_SERVER_CA_FILE", workflow)
+
+    def test_tls_material_guard_verifies_chains_names_dates_and_keys(self) -> None:
+        source = (ROOT / "scripts/verify_tls_material.sh").read_text(encoding="utf-8")
+        for required in (
+            "-purpose sslserver", "-purpose sslclient", "-checkhost",
+            "-checkend 604800", "-checkend 2592000", "-pubout -outform DER",
+            "OPENBAO_TLS_MATERIAL=PASS", "OPENBAO_MTLS_CLIENT_CHAIN=PASS",
+        ):
+            self.assertIn(required, source)
 
     def test_compose_has_no_public_ports_and_preserves_key_file_modes(self) -> None:
         compose = (ROOT / "deploy/compose/compose.yaml").read_text(encoding="utf-8")

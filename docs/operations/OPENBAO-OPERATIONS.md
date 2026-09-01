@@ -45,8 +45,11 @@ reinitialize, replace recovery material or reset Raft to resolve drift.
 
 Apply supports only exact-checksum registration of the replay-protected JWT
 plugin, creation of its auth mount, and creation/update of the reviewed KV v2
-engine, CEL roles, policies and file audit device. Delete, plugin-version
-overwrite, mount replacement, audit disable and initialization are unsupported.
+engine, CEL roles and policies. The file audit device is declarative server
+configuration because OpenBao 2.6 rejects API audit creation by default; a
+missing or drifted live device blocks the plan. Delete, plugin-version
+overwrite, mount replacement, API audit mutation and initialization are
+unsupported.
 
 ## Runtime image deployment
 
@@ -56,8 +59,9 @@ environment SHA and the plugin artifact from a successful image-authority run
 whose `head_sha` matches. `scripts/deploy_runtime.sh` then:
 
 1. verifies runtime authority and the `@kazan555` environment approval;
-2. validates exact image/plugin digests, TLS file ownership and private-key
-   modes, external networks, and writable Raft/audit directory ownership;
+2. validates exact image/plugin digests, TLS/mTLS chains, SANs, certificate
+   purposes, validity and key matches, file ownership/private-key modes,
+   external networks, and writable Raft/audit directory ownership;
 3. requires an immediate encrypted immutable off-host snapshot whenever state
    exists, and always in production;
 4. renders an immutable SHA-named configuration without overwriting a previous

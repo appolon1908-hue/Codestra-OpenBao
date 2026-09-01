@@ -47,10 +47,17 @@ re-render on version change.
 
 ## Audit and evidence
 
-The prepared file audit device hashes accessors and does not log raw values.
+The file audit device is declarative server configuration rather than an
+API-created device. API audit creation stays disabled. The device hashes
+accessors and does not log raw values.
 Sanitized audit records flow to Alloy/Loki. CI rejects common credential
 formats in the working tree and full Git history. Plans, read-back and
 certification evidence contain paths, hashes, counts and status only.
+
+Before a runtime container is stopped, `verify_tls_material.sh` validates the
+server and health-client chains, server and client purposes, canonical API and
+node SANs, certificate/CA minimum validity windows, and certificate/private-key
+public-key matches. It emits status and names only, never key material.
 
 ## Separate business authorization
 

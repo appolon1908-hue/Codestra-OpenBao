@@ -14,6 +14,7 @@ The only valid states in this checklist are `PASS`, `WARNING`, `FAIL` and
   binary digest and isolated sequential/concurrent/negative JWT tests.
 - WARNING — remediation branch is pushed and exact-head CI is running; it is
   not yet reviewed or promoted.
+- PASS — repository immutable-release enforcement is enabled.
 - FAIL — immutable signed production release and provenance have not run.
 - WARNING — required checks and promotion-branch protections are installed;
   environment branch restrictions exist, but `@kazan555` has not yet accepted

@@ -99,15 +99,6 @@ while IFS= read -r operation; do
     auth_config:create|auth_config:update|jwt_role:create|jwt_role:update)
       bao write "$name" @"$payload" >/dev/null
       ;;
-    audit_device:create)
-      bao audit enable -path="${name%/}" \
-        "$(jq -r '.type' "$payload")" \
-        file_path="$(jq -r '.options.file_path' "$payload")" \
-        mode="$(jq -r '.options.mode' "$payload")" \
-        format="$(jq -r '.options.format' "$payload")" \
-        hmac_accessor="$(jq -r '.options.hmac_accessor' "$payload")" \
-        log_raw="$(jq -r '.options.log_raw' "$payload")" >/dev/null
-      ;;
     *)
       echo "Unsupported or destructive plan operation: ${kind}:${action}" >&2
       exit 2
@@ -123,7 +114,6 @@ done < <(jq -c '
     elif .kind == "policy" then 4
     elif .kind == "auth_config" then 5
     elif .kind == "jwt_role" then 6
-    elif .kind == "audit_device" then 7
     else 99 end
   )[]
 ' "$plan")

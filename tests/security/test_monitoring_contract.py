@@ -76,6 +76,21 @@ class MonitoringContractTests(unittest.TestCase):
         for forbidden in ("secret_value", "client_secret", "unseal_key", "BAO_TOKEN"):
             self.assertNotIn(forbidden, source)
 
+    def test_audit_device_is_declarative_and_api_creation_stays_disabled(self) -> None:
+        server = (ROOT / "openbao/openbao.hcl").read_text()
+        template = (ROOT / "openbao/templates/openbao.hcl.tpl").read_text()
+        for source in (server, template):
+            self.assertIn('audit "file" "file-audit"', source)
+            self.assertIn('file_path = "/openbao/audit/openbao-audit.jsonl"', source)
+            self.assertIn('log_raw = "false"', source)
+        repository_source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "scripts").glob("*")
+            if path.is_file()
+        )
+        self.assertNotIn("bao audit enable", repository_source)
+        self.assertNotIn("unsafe_allow_api_audit_creation", server)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

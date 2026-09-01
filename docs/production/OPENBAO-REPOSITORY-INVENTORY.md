@@ -117,7 +117,10 @@ No runtime authorization was enabled during reconciliation.
   workflows; those files take effect there only through the required promotion
   PRs. Protection itself is already active and will not be bypassed.
 - Action dependencies are repository-wide enforced as immutable SHAs.
-- No release tag exists in this repository.
+- Repository-level immutable releases are enabled and were read back through
+  the repository API on 2026-09-01. No release tag exists yet; the protected
+  production workflow will publish and read back the signed release only after
+  every certification gate passes.
 - Current documentation describes source-prepared, non-deployed behavior and
   cannot serve as production certification.
 

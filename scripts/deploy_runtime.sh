@@ -22,7 +22,7 @@ cd "$repo_root"
 [[ "$(jq -r .runtimeApplyAuthorized plugins/codestra-jwt-replay/plugin.v1.json)" == true ]]
 scripts/verify_environment_approval.sh
 
-for command in docker jq sha256sum stat; do command -v "$command" >/dev/null; done
+for command in docker jq openssl sha256sum stat; do command -v "$command" >/dev/null; done
 for path in "$runtime_root" "$data_dir" "$audit_dir"; do
   [[ -d "$path" && ! -L "$path" ]]
 done
@@ -83,6 +83,7 @@ check_readable_file "$CODESTRA_CLIENT_CA_FILE"
 check_readable_file "$OPENBAO_HEALTH_CLIENT_CERT_FILE"
 check_writable_directory "$data_dir"
 check_writable_directory "$audit_dir"
+scripts/verify_tls_material.sh
 
 expected_plugin_sha="$(jq -r .binarySha256 plugins/codestra-jwt-replay/plugin.v1.json)"
 [[ "$(basename "$plugin_source")" == "$(jq -r .name plugins/codestra-jwt-replay/plugin.v1.json)" ]]

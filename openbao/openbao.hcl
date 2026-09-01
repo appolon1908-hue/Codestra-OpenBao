@@ -17,6 +17,17 @@ storage "raft" {
   performance_multiplier = 1
 }
 
+audit "file" "file-audit" {
+  description = "Codestra fail-closed JSON audit log"
+  options = {
+    file_path = "/openbao/audit/openbao-audit.jsonl"
+    mode = "0600"
+    format = "json"
+    hmac_accessor = "true"
+    log_raw = "false"
+  }
+}
+
 listener "tcp" {
   address = "0.0.0.0:8200"
   cluster_address = "0.0.0.0:8201"

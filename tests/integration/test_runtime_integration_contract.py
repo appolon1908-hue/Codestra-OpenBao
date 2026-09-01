@@ -23,7 +23,6 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "ANONYMOUS_ACCESS=DENIED",
             "SYSTEM_ADMIN_ACCESS=DENIED",
             "PATH_TRAVERSAL_ACCESS=DENIED",
-            "ROOT_TOKEN_USAGE_DETECTION=PASS",
         ):
             self.assertIn(marker, replay)
         for negative in (

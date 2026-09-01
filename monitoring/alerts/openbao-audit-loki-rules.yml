@@ -13,7 +13,7 @@ groups:
 
       - alert: OpenBaoRootTokenUsage
         expr: |
-          sum(count_over_time({service="openbao"} | json | __error__="" | auth_display_name="root" [5m])) > 0
+          sum(count_over_time({service="openbao"} |= "\"policies\":[\"root\"]" [5m])) > 0
         for: 0m
         labels:
           severity: critical

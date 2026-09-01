@@ -13,8 +13,9 @@ on:
         type: string
 
 permissions:
+  actions: read
   attestations: write
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -28,6 +29,9 @@ jobs:
     environment: openbao-release
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      CODESTRA_ENVIRONMENT: production
+      OPENBAO_APPROVAL_ENVIRONMENT: openbao-release
     steps:
       - name: Check out exact production source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -45,12 +49,16 @@ jobs:
           cache: false
       - name: Verify exact protected source and release identifier
         env:
+          GH_TOKEN: ${{ github.token }}
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
           RELEASE_ID: ${{ inputs.release_id }}
         run: |
           [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EXPECTED_SOURCE_SHA" == "$GITHUB_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/production" --jq .object.sha)" == "$EXPECTED_SOURCE_SHA" ]]
           [[ "$RELEASE_ID" =~ ^openbao-v[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}\.[0-9]+$ ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/immutable-releases" --jq .enabled)" == true ]]
+          scripts/verify_environment_approval.sh
           test -z "$(git status --porcelain)"
       - name: Install pinned validation dependencies
         run: |
@@ -110,3 +118,30 @@ jobs:
             ${{ runner.temp }}/release/${{ inputs.release_id }}.sigstore.json
           if-no-files-found: error
           retention-days: 90
+      - name: Publish and read back the immutable GitHub release
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          release_dir="$RUNNER_TEMP/release"
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/immutable-releases" --jq .enabled)" == true ]]
+          if gh release view "$RELEASE_ID" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Release identifier already exists; immutable substitution is prohibited.' >&2
+            exit 2
+          fi
+          gh release create "$RELEASE_ID" \
+            "$release_dir/${RELEASE_ID}.tar.gz" \
+            "$release_dir/${RELEASE_ID}.tar.gz.sha256" \
+            "$release_dir/${RELEASE_ID}.sigstore.json" \
+            --repo "$GITHUB_REPOSITORY" --target "$EXPECTED_SOURCE_SHA" \
+            --title "$RELEASE_ID" \
+            --notes "Immutable Codestra OpenBao release from production source ${EXPECTED_SOURCE_SHA}. Provider business effects remain disabled."
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_ID}" --jq .object.sha)" == "$EXPECTED_SOURCE_SHA" ]]
+          release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_ID}")"
+          jq -e --arg tag "$RELEASE_ID" '
+            .tag_name == $tag and .draft == false and .prerelease == false and
+            .immutable == true and
+            ([.assets[].name] | sort) == ([$tag + ".sigstore.json", $tag + ".tar.gz", $tag + ".tar.gz.sha256"] | sort)
+          ' <<<"$release" >/dev/null
+          echo 'OPENBAO_IMMUTABLE_GITHUB_RELEASE=PASS'

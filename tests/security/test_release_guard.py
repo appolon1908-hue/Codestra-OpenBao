@@ -34,6 +34,16 @@ class ReleaseGuardTests(unittest.TestCase):
             self.assertIn(required, manifest)
         self.assertRegex(MODULE.authority_checksum(manifest), r"^[0-9a-f]{64}$")
 
+    def test_release_workflow_publishes_only_with_immutable_protection(self) -> None:
+        source = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        for required in (
+            "openbao-release", "verify_environment_approval.sh",
+            "immutable-releases", "gh release create", "--target",
+            ".immutable == true", "OPENBAO_IMMUTABLE_GITHUB_RELEASE=PASS",
+        ):
+            self.assertIn(required, source)
+        self.assertIn("contents: write", source)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

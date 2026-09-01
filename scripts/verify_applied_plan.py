@@ -63,11 +63,6 @@ def verify(operation: dict) -> None:
         keys = tuple(payload)
         if selected(actual, keys) != selected(payload, keys):
             raise ValueError(kind + "_readback_mismatch:" + name)
-    elif kind == "audit_device":
-        audits = data(json_command("audit", "list"))
-        item = audits.get(name)
-        if not item or item.get("type") != payload["type"]:
-            raise ValueError("audit_device_readback_mismatch")
     else:
         raise ValueError("unknown_plan_kind:" + str(kind))
 
