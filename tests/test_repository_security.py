@@ -44,6 +44,15 @@ class RepositorySecurityTests(unittest.TestCase):
         validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
         VALIDATOR.validate_workflow_pins(self.sync_source + "\n" + validate_source)
 
+    def test_whitespace_gate_checks_the_committed_base_to_head_range(self) -> None:
+        source = (ROOT / ".github/workflows/validate.yml").read_text()
+        self.assertIn("fetch-depth: 0", source)
+        self.assertIn('base_sha="${{ github.event.pull_request.base.sha }}"', source)
+        self.assertIn(
+            'git diff --check "$base_sha" "$GITHUB_SHA" -- . \':(exclude)upstream\'',
+            source,
+        )
+
     def test_exact_upstream_retry_preserves_lock_timestamp(self) -> None:
         self.assertIn(
             "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
