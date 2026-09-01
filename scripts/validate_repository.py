@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SYNC_WORKFLOW_SHA256 = "45bab632487aeeb298220c97b4c9aec6ccc28a314f5cecc463915c83d794eca2"
+SYNC_WORKFLOW_SHA256 = "848c5fde74fdad19cdc4f5cdf1418987e81eba7db3f24856262ec6529fc43552"
 UPSTREAM_PATH = ROOT / "CODESTRA_UPSTREAM.json"
 SYNC_WORKFLOW_PATH = ROOT / ".github/workflows/upstream-source-sync.yml"
 VALIDATE_WORKFLOW_PATH = ROOT / ".github/workflows/validate.yml"
@@ -81,7 +81,7 @@ def reject_protected_pushes(source: str) -> None:
                 raise ValueError("protected_branch_sync_forbidden:dynamic_command")
         segments: list[list[str]] = [[]]
         for word in words:
-            if word and set(word) <= set("();&|"):
+            if word in {"{", "}"} or (word and set(word) <= set("();&|")):
                 segments.append([])
             else:
                 segments[-1].append(word)
@@ -101,6 +101,21 @@ def reject_protected_pushes(source: str) -> None:
             command_index = index + 1
             while command_index < len(words) and words[command_index].startswith("-"):
                 option = words[command_index]
+                if option == "-c":
+                    if command_index + 1 >= len(words):
+                        raise ValueError("sync_shell_parse_failed")
+                    config = words[command_index + 1]
+                    if (
+                        config.lower().startswith("alias.")
+                        or "$" in config
+                    ):
+                        raise ValueError(
+                            "protected_branch_sync_forbidden:dynamic_command"
+                        )
+                if option.lower().startswith(("-calias.", "--config-env=alias.")):
+                    raise ValueError(
+                        "protected_branch_sync_forbidden:dynamic_command"
+                    )
                 command_index += 2 if option in {
                     "-c", "-C", "--git-dir", "--work-tree"
                 } else 1
@@ -207,6 +222,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "(?:AKIA|ASIA)[0-9A-Z]{12,}",
         'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main',
         "Multiple open pull requests claim the sync branch.",
+        "github.ref == 'refs/heads/main'",
     )
     for token in required:
         if token not in source:

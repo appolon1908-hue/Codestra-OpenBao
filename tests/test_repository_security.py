@@ -151,6 +151,12 @@ class RepositorySecurityTests(unittest.TestCase):
             safe + '\n          G=git; "$G" push origin HEAD:refs/heads/main',
             safe + '\n          verb=push; git "$verb" origin HEAD:refs/heads/main',
             safe + '\n          suffix=; git p${suffix}ush origin HEAD:refs/heads/main',
+            safe
+            + '\n          G=/usr/bin/git; P=pu; P+=sh; { "$G" "$P" origin HEAD:refs/heads/main; }',
+            safe
+            + '\n          git -c alias.x=push x origin HEAD:refs/heads/main',
+            safe
+            + '\n          git -calias.x=push x origin HEAD:refs/heads/main',
         ):
             with self.subTest(command=command):
                 unsafe = self.sync_source.replace(safe, command)
@@ -419,6 +425,17 @@ class RepositorySecurityTests(unittest.TestCase):
         )
         triggers = validate_document.get("on") or validate_document.get(True) or {}
         self.assertIn("workflow_dispatch", triggers)
+
+    def test_manual_sync_is_restricted_to_main(self) -> None:
+        self.assertEqual(
+            self.sync_document["jobs"]["sync"]["if"],
+            "github.actor != 'github-actions[bot]' && github.ref == 'refs/heads/main'",
+        )
+        unsafe = self.sync_source.replace(
+            " && github.ref == 'refs/heads/main'", ""
+        )
+        with self.assertRaisesRegex(ValueError, "reviewed_sync_boundary_missing"):
+            VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
 
     def test_only_exactly_sanitized_secret_fixture_paths_are_allowed(self) -> None:
         expected = {
