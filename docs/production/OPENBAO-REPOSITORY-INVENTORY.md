@@ -45,7 +45,7 @@ remediation; they were absent from four branches at initial inventory.
 | `test` | `6667709d257cdd97ceb22a97aeff798928c1bf28` | promotion target after development certification |
 | `staging` | `6e092ce5cf8e1cd76587118103653ebb7e7620b0` | promotion target after test certification |
 | `production` | `38ff3f3d7a2dcd9f03455415c26b2562a50adb34` | production source target; currently stale |
-| `prod-readiness-20260901` | `5f5e3583585081e450f945440a1fab503bfa8399` | exact alias of current `main`; no unique work |
+| `prod-readiness-20260901` | `ee547d16273fb6db5b1d5eb6afc2a8eec479d7a0` | one later readiness-gate document was reviewed; its fail-closed rules are fully represented in the more detailed production checklist and certification, with no unique implementation to import |
 | `docs/repository-profile-v1` | `32f32f889b6fd7df36351e9ac3cde22d2006c79c` | reuse accurate profile concepts; do not replace newer source-sync logic |
 | `feature/codestra-corporate-suite-v1-20260829` | `b280999a774e4c8dd59a4ad7767e5a9dd74bf610` | useful intake controls already evolved and merged into `development` |
 | `feature/intake-monitoring-v1-20260830` | `21759128a11c5dfeb8d4c85ea7d93fc8121a48b1` | fully represented by later development history |
@@ -56,14 +56,15 @@ remediation; they were absent from four branches at initial inventory.
 | `integration/codestra-observability-suite-v1-20260830` | `e84b471acff573151c8deddbe77226278417fb6e` | controlled monitoring and activation contracts already merged into `development` |
 | `integration/stage6-intake-observability-v1-20260830` | `b83bc6638de5897f767dc13697fcb21d5e55fbdf` | monitoring token, deny-path and scope controls already merged into `development` |
 | `remediation/workload-secret-authority` | `7294d484825c7d661e8c4531d3c48cafd4966d70` | four production-quality commits reconciled onto the remediation branch |
-| `security/openbao-protected-source-gates-20260901` | `130d329006c69ca2eb34658be1e88dd84de2d48c` | five production-quality commits reconciled and hardened on the remediation branch |
+| `security/openbao-protected-source-gates-20260901` | `576e31af648a051f1d46d36e4558548b84337ba1` | all later hardening commits reviewed and selectively reconciled; stale branch targeting and control regressions were excluded |
 
 ## Open pull requests
 
 | PR | Head and exact SHA | Base | State at inventory | Disposition |
 | --- | --- | --- | --- | --- |
+| #19, production completion | `remediation/openbao-production-completion-v1` at `fdd5dbeb7edea2c1cd49f705fff2becbac8bc426` | `development` | open; exact-head validation in progress; independent review blocked on pending collaborator acceptance | canonical promotion PR; do not bypass its required checks or review |
 | #18, workload secret authority | `remediation/workload-secret-authority` at `7294d484825c7d661e8c4531d3c48cafd4966d70` | `main` | open; no CI check | superseded by reconciled implementation on the development-rooted remediation branch |
-| #17, protected source gates | `security/openbao-protected-source-gates-20260901` at `130d329006c69ca2eb34658be1e88dd84de2d48c` | `main` | open; `validate-source` passed; latest review identified incomplete token/key scanning | superseded by reconciled implementation plus regression coverage for provider tokens and standard private-key headers |
+| #17, protected source gates | `security/openbao-protected-source-gates-20260901` at `576e31af648a051f1d46d36e4558548b84337ba1` | `main` | open; ten new hardening commits appeared after initial reconciliation | superseded after selectively retaining its complete push-command parser, immutable sync-branch authority, expanded credential scanning and syntax-preserving fixture sanitation; obsolete main targeting, reduced workflow validation and removed provenance ledger were not imported |
 | #9, repository profile | `docs/repository-profile-v1` at `32f32f889b6fd7df36351e9ac3cde22d2006c79c` | `main` | draft; no CI check | reuse accurate text in the canonical profile; do not merge its stale workflow wholesale |
 
 PRs #17 and #18 incorrectly target `main` for development work. Their useful

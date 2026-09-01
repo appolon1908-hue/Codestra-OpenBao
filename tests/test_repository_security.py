@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -45,6 +47,61 @@ class RepositorySecurityTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "protected_branch_sync_forbidden"):
             VALIDATOR.validate_sync_workflow(unsafe, self.sync_document)
+        for destination in (
+            "HEAD:refs/heads/main",
+            "HEAD:refs/heads/staging",
+            "HEAD:refs/heads/production",
+            "refs/heads/main",
+        ):
+            with self.subTest(destination=destination):
+                unsafe = self.sync_source.replace(
+                    'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
+                    f"git push origin {destination}",
+                )
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden"
+                ):
+                    VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
+
+    def test_only_exact_sync_push_command_is_allowed(self) -> None:
+        safe = 'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"'
+        VALIDATOR.reject_protected_pushes(safe)
+        unsafe_commands = (
+            safe + " HEAD:refs/heads/main",
+            safe + " \\\nHEAD:refs/heads/production",
+            "git push origin HEAD:refs/heads/main;echo ok",
+            "git push origin HEAD:refs/heads/staging&&echo ok",
+            "(git push origin HEAD:refs/heads/production)",
+            "git push origin 2>/dev/null HEAD:refs/heads/main",
+            "/usr/bin/git -c protocol.version=2 push origin HEAD:refs/heads/main",
+            "bash -c 'SYNC_BRANCH=main; git push origin HEAD:refs/heads/${SYNC_BRANCH}'",
+            "git -c remote.origin.push=HEAD:refs/heads/main push origin",
+            "git push origin HEAD:refs/heads/{main,topic}",
+        )
+        for command in unsafe_commands:
+            with self.subTest(command=command):
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden"
+                ):
+                    VALIDATOR.reject_protected_pushes(command)
+
+        quoted = self.sync_source.replace(
+            safe, safe + "\n          g''it p''ush origin HEAD:refs/heads/main"
+        )
+        with self.assertRaisesRegex(ValueError, "protected_branch_sync_forbidden"):
+            VALIDATOR.validate_sync_workflow(quoted, yaml.safe_load(quoted))
+        missing = self.sync_source.replace(safe, "true")
+        with self.assertRaisesRegex(ValueError, "approved_sync_push_count_invalid"):
+            VALIDATOR.validate_sync_workflow(missing, yaml.safe_load(missing))
+
+    def test_sync_branch_destination_is_immutable(self) -> None:
+        assignment = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+        self.assertIn(assignment, self.sync_source)
+        reassigned = self.sync_source.replace(
+            assignment, assignment + "\n          SYNC_BRANCH=main"
+        )
+        with self.assertRaisesRegex(ValueError, "sync_branch_authority_invalid"):
+            VALIDATOR.validate_sync_workflow(reassigned, yaml.safe_load(reassigned))
 
     def test_workflow_actions_are_immutable(self) -> None:
         VALIDATOR.validate_all_workflows()
@@ -158,10 +215,14 @@ class RepositorySecurityTests(unittest.TestCase):
         scanner = ROOT / "scripts/reject_repository_secrets.sh"
         cases = {
             "github.txt": "gh" + "p_" + ("A" * 24),
+            "fine-grained-github.txt": "github" + "_pat_" + ("G" * 24),
             "aws.txt": "AK" + "IA" + ("A" * 16),
+            "aws-sts.txt": "AS" + "IA" + ("B" * 16),
             "encrypted-key.txt": "-----BEGIN " + "ENCRYPTED PRIVATE KEY-----\n",
             "dsa-key.txt": "-----BEGIN " + "DSA PRIVATE KEY-----\n",
+            "pgp-key.txt": "-----BEGIN PGP PRIVATE" + " KEY BLOCK-----\n",
             "openbao-token.txt": "hv" + "s." + ("A" * 16),
+            "legacy-openbao-token.txt": "s." + ("B" * 24),
         }
         for name, contents in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
@@ -172,6 +233,73 @@ class RepositorySecurityTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 1)
                 self.assertIn(name, result.stderr)
+
+    def test_legacy_token_boundary_does_not_reject_claim_field_access(self) -> None:
+        scanner = ROOT / "scripts/reject_repository_secrets.sh"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "policy.txt"
+            path.write_text("claims.codestra_environment == 'staging'\n")
+            result = subprocess.run(
+                [scanner, directory], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_client_secret_fixture_sanitization_preserves_supported_syntax(self) -> None:
+        heredoc = self.sync_source.rsplit("python3 - <<'PY'\n", 1)[1].split(
+            "\n          PY", 1
+        )[0]
+        embedded = "\n".join(
+            line[10:] if line.startswith("          ") else line
+            for line in heredoc.splitlines()
+        )
+        tree = ast.parse(embedded)
+        selected = [ast.Import(names=[ast.alias(name="re")])]
+        selected.extend(
+            node
+            for node in tree.body
+            if (
+                isinstance(node, ast.Assign)
+                and any(
+                    isinstance(target, ast.Name)
+                    and target.id == "CLIENT_SECRET_ASSIGNMENT"
+                    for target in node.targets
+                )
+            )
+            or (
+                isinstance(node, ast.FunctionDef)
+                and node.name == "sanitize_client_secret_assignment"
+            )
+        )
+        namespace: dict[str, object] = {}
+        module = ast.fix_missing_locations(ast.Module(selected, []))
+        exec(compile(module, "<sync>", "exec"), namespace)
+        pattern = namespace["CLIENT_SECRET_ASSIGNMENT"]
+        replacement = namespace["sanitize_client_secret_assignment"]
+        self.assertIsInstance(pattern, re.Pattern)
+
+        secret_key = "client_" + "secret"
+        supported = {
+            f'oidc_{secret_key} = "test"':
+                f'oidc_{secret_key} = "<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>"',
+            f"{secret_key}: 'fixture' # kept":
+                f"{secret_key}: '<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>' # kept",
+            f'  "{secret_key}": "fixture",':
+                f'  "{secret_key}": "<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>",',
+        }
+        for original, expected in supported.items():
+            with self.subTest(original=original):
+                self.assertEqual(pattern.sub(replacement, original), expected)
+
+        unsupported = (
+            f'{secret_key} := "test"',
+            f'{secret_key} == "test"',
+            f'"{secret_key}": null',
+            f'{secret_key} = unquoted',
+            f'{secret_key} = "test" + suffix',
+        )
+        for original in unsupported:
+            with self.subTest(original=original):
+                self.assertEqual(pattern.sub(replacement, original), original)
 
     def test_generated_sync_pr_explicitly_dispatches_validation(self) -> None:
         self.assertEqual(

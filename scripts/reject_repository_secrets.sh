@@ -2,14 +2,13 @@
 set -Eeuo pipefail
 
 search_root="${1:-.}"
-pattern="(BEGIN ([A-Z0-9]+ )?PRIVATE KEY|[\"']?Authorization[\"']?[[:space:]]*:[[:space:]]*[\"']?[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._~+/-]{16,}|[\"']?client_secret[\"']?[[:space:]]*[:=][[:space:]]*[^[:space:]<]+|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[a-z]-[A-Za-z0-9-]{12,}|xapp-[A-Za-z0-9-]{12,}|SK[0-9a-fA-F]{32}|AIza[0-9A-Za-z_-]{30,}|sk_live_[0-9A-Za-z]{16,}|hv[srbpS]\.[A-Za-z0-9_.:-]{8,})"
+pattern="(BEGIN ([A-Z0-9][A-Z0-9 -]{0,63} )?PRIVATE KEY( BLOCK)?|[\"']?Authorization[\"']?[[:space:]]*:[[:space:]]*[\"']?[[:space:]]*Bearer[[:space:]]+[-A-Za-z0-9._~+/]{16,}=*|[\"']?client_secret[\"']?[[:space:]]*[:=][[:space:]]*[\"']?[^[:space:]<\"']+|(^|[^A-Za-z0-9])(hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}|(^|[^A-Za-z0-9])s\.[A-Za-z0-9_-]{16,}|(AKIA|ASIA)[0-9A-Z]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox(a|b|p|r|s)-[A-Za-z0-9-]{12,}|xapp-[A-Za-z0-9-]{12,}|SK[0-9a-fA-F]{32}|AIza[0-9A-Za-z_-]{30,}|sk_live_[0-9A-Za-z]{16,})"
 path_list="$(mktemp)"
 trap 'rm -f -- "$path_list"' EXIT
 
 set +e
 find "$search_root" \
   -path "$search_root/.git" -prune -o \
-  -type d -name __pycache__ -prune -o \
   \( -type f -o -type l \) -print0 > "$path_list"
 find_status=$?
 set -e

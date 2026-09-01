@@ -54,7 +54,7 @@ jobs:
           [[ "$UPSTREAM_REF" =~ ^[0-9a-f]{40}$ ]] || exit 2
           [[ "$IMPORT_PATH" == "upstream" ]] || exit 2
 
-          SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"
+          readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"
           existing_sync_branch=0
           set +e
           remote_branch="$(
@@ -156,16 +156,26 @@ jobs:
               'integrationtest','examples','example','docs','website','testhelpers'
           }
 
-          # Assemble key-header detector fragments so this security workflow
-          # is not itself indistinguishable from a committed key fixture.
-          private_key_marker='PRIVATE' + ' KEY'
+          CLIENT_SECRET_ASSIGNMENT = re.compile(
+              r'''(?im)^(?P<prefix>[ \t]*(?P<key_quote>["']?)[A-Za-z0-9_]*client_secret(?P=key_quote)[ \t]*(?P<delimiter>[:=])[ \t]*)(?P<value_quote>["'])(?P<value>[^"'\r\n]*)(?P=value_quote)(?P<suffix>[ \t]*(?:[,#].*)?)$'''
+          )
+
+          def sanitize_client_secret_assignment(match):
+              quote=match.group('value_quote')
+              return (
+                  match.group('prefix')
+                  + quote
+                  + '<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>'
+                  + quote
+                  + match.group('suffix')
+              )
 
           common_replacements=[
               # OpenBao/Vault token-shaped fixtures, including hmac token forms.
               (r'(?<![A-Za-z0-9])(?:hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}', 'OPENBAO_TOKEN_FIXTURE_INVALID', 0),
               (r'(?<![A-Za-z0-9])s\.[A-Za-z0-9_-]{16,}', 'OPENBAO_LEGACY_TOKEN_FIXTURE_INVALID', 0),
               # AWS key-shaped examples not fully covered by the earlier pass.
-              (r'AKIA[0-9A-Z]{12,}', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
+              (r'(?:AKIA|ASIA)[0-9A-Z]{12,}', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
               (r'A3T_PROXY_TASK_TEST', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
               (r'wJalrXUtnFEMI/K7MDENG/[A-Za-z0-9/+_=.-]*', 'AWS_SECRET_ACCESS_KEY_FIXTURE_INVALID', 0),
               # Known OAuth/high-entropy upstream test fixture values caught by push protection.
@@ -176,15 +186,21 @@ jobs:
               (r'48a2c2f9-0e52-34bc-d7e6-050925c06ced', 'REKEY_FIXTURE_ID_INVALID', 0),
               # Common provider token shapes used in tests/examples.
               (r'gh[pousr]_[A-Za-z0-9]{20,}', 'GITHUB_TOKEN_FIXTURE_INVALID', 0),
+              (r'github_pat_[A-Za-z0-9_]{20,}', 'GITHUB_TOKEN_FIXTURE_INVALID', 0),
               (r'SK[0-9a-fA-F]{32}', 'TWILIO_KEY_FIXTURE_INVALID', 0),
               (r'xox(?:a|b|p|r|s)-[A-Za-z0-9-]{12,}', 'SLACK_TOKEN_FIXTURE_INVALID', 0),
               (r'xapp-[A-Za-z0-9-]{12,}', 'SLACK_APP_TOKEN_FIXTURE_INVALID', 0),
+              # Preserve fixture syntax while making generic client-secret
+              # assignments explicitly non-credential material. Only complete,
+              # quoted scalar assignments are rewritten; operators, nulls and
+              # compound expressions remain untouched and fail the secret scan.
+              (CLIENT_SECRET_ASSIGNMENT, sanitize_client_secret_assignment, 0),
               # Private-key blocks are only neutralized in fixture/docs paths.
-              (r'-----BEGIN [^-\n]*' + private_key_marker + r'-----.*?-----END [^-\n]*' + private_key_marker + r'-----', 'PRIVATE_KEY_TEST_FIXTURE_REMOVED', re.DOTALL),
-              (r'-----BEGIN PGP ' + private_key_marker + r' BLOCK-----.*?-----END PGP ' + private_key_marker + r' BLOCK-----', 'PGP_PRIVATE_KEY_TEST_FIXTURE_REMOVED', re.DOTALL),
+              (r'-----BEGIN [^-\n]*PRIVATE KEY-----.*?-----END [^-\n]*PRIVATE KEY-----', 'PRIVATE_KEY_TEST_FIXTURE_REMOVED', re.DOTALL),
+              (r'-----BEGIN PGP PRIVATE' + r' KEY BLOCK-----.*?-----END PGP PRIVATE' + r' KEY BLOCK-----', 'PGP_PRIVATE_KEY_TEST_FIXTURE_REMOVED', re.DOTALL),
           ]
 
-          for p in Path('upstream').rglob('*'):
+          for p in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix()):
               if not p.is_file():
                   continue
               rel=p.relative_to('upstream')

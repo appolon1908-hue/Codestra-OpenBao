@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 
 import yaml
@@ -38,6 +39,88 @@ EXPECTED_UPSTREAM_SHA = "dd9c19c37a878cf4a81b18efb8d6f0599c7da923"
 EXPECTED_IMAGE_DIGEST = (
     "sha256:e29524ba7c3f20d01f562c481e3eccbad6c91df45a2f2531433da4951e408cff"
 )
+
+
+def _logical_shell_lines(source: str) -> tuple[str, ...]:
+    records: list[str] = []
+    pending = ""
+    for raw in source.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        pending += line
+        trailing_backslashes = len(pending) - len(pending.rstrip("\\"))
+        if trailing_backslashes % 2 == 1:
+            pending = pending[:-1]
+            continue
+        records.append(pending)
+        pending = ""
+    if pending:
+        records.append(pending)
+    return tuple(records)
+
+
+def reject_protected_pushes(source: str) -> None:
+    """Permit exactly one fully tokenized push to the immutable sync ref."""
+
+    approved = ["git", "push", "origin", "HEAD:refs/heads/${SYNC_BRANCH}"]
+    approved_count = 0
+    for line in _logical_shell_lines(source):
+        candidate_probe = re.sub(r"[\"']", "", line)
+        candidate_probe = re.sub(r"\\([^\n])", r"\1", candidate_probe)
+        if re.search(r"\bgit\b.*\bpush\b", candidate_probe) is None:
+            continue
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|<>")
+            lexer.whitespace_split = True
+            lexer.commenters = "#"
+            words = list(lexer)
+        except ValueError as exc:
+            raise ValueError("sync_shell_parse_failed") from exc
+        if words == approved:
+            approved_count += 1
+            continue
+        git_push = False
+        for index, word in enumerate(words):
+            if Path(word).name != "git":
+                continue
+            command_index = index + 1
+            while command_index < len(words) and words[command_index].startswith("-"):
+                option = words[command_index]
+                command_index += 2 if option in {
+                    "-c", "-C", "--git-dir", "--work-tree"
+                } else 1
+            if command_index < len(words) and words[command_index] == "push":
+                git_push = True
+                break
+        nested_push = any(
+            re.search(r"\bgit\s+push\b", re.sub(r"\\([^\n])", r"\1", word))
+            for word in words
+        )
+        if git_push or nested_push:
+            raise ValueError("protected_branch_sync_forbidden:push_not_exact")
+    if approved_count != 1:
+        raise ValueError("approved_sync_push_count_invalid")
+
+
+def validate_sync_branch_authority(source: str) -> None:
+    """Require one immutable, deterministic authority for the sync destination."""
+
+    expected = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+    lines = _logical_shell_lines(source)
+    if lines.count(expected) != 1:
+        raise ValueError("sync_branch_authority_invalid")
+    for line in lines:
+        if line == expected:
+            continue
+        executable_probe = re.sub(r"\\([^\n])", r"\1", line)
+        if re.search(r"(?:^|[();&|<>\s])SYNC_BRANCH\s*=", executable_probe):
+            raise ValueError("sync_branch_authority_invalid")
+        if re.search(
+            r"\b(?:unset|read|mapfile|declare|typeset|local|export|readonly|printf)\b[^\n]*\bSYNC_BRANCH\b",
+            executable_probe,
+        ):
+            raise ValueError("sync_branch_authority_invalid")
 
 
 def validate_upstream_authority(data: dict) -> None:
@@ -88,9 +171,11 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     }
     if permissions != expected_permissions:
         raise ValueError("sync_permissions_must_only_support_reviewed_pr")
+    validate_sync_branch_authority(source)
+    reject_protected_pushes(source)
     forbidden_patterns = (
-        r"git\s+push\s+origin\s+HEAD:(?:main|staging|production)(?:\s|$)",
-        r"git\s+push\s+origin\s+(?:main|staging|production)(?:\s|$)",
+        r"git\s+push\s+origin\s+['\"]?HEAD:(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",
+        r"git\s+push\s+origin\s+['\"]?(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",
         r"git\s+pull\s+--rebase\s+origin\s+main",
         r"git\s+push\s+--force",
     )
@@ -100,7 +185,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     required = (
         "[[ \"$UPSTREAM_REF\" =~ ^[0-9a-f]{40}$ ]]",
         "[[ \"$UPSTREAM_SHA\" == \"$UPSTREAM_REF\" ]]",
-        'SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
+        'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
         'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',
@@ -109,6 +194,9 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "CODESTRA_UPSTREAM_SANITIZATION.json",
         "original_block_sha256",
         "PRIVATE_KEY_TEST_FIXTURE_REMOVED",
+        "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
+        "(?:AKIA|ASIA)[0-9A-Z]{12,}",
+        "github_pat_[A-Za-z0-9_]{20,}",
         "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
         "synchronized_at = previous_lock.get('synchronized_at', synchronized_at)",
         'git ls-remote --exit-code --heads origin "refs/heads/${SYNC_BRANCH}"',
@@ -214,6 +302,8 @@ def validate_secret_scanner(source: str) -> None:
         raise ValueError("imported_tests_must_be_secret_scanned")
     if re.search(r"grep\s+-[^\n]*I", source):
         raise ValueError("binary_secret_scan_must_not_be_skipped")
+    if "[^[:space:]<\\\"']+" not in source:
+        raise ValueError("sanitized_client_secret_placeholder_must_not_match")
     required = (
         'find "$search_root"',
         '-path "$search_root/.git"',
@@ -223,6 +313,8 @@ def validate_secret_scanner(source: str) -> None:
         "find_status=$?",
         "secret_scan_status=$?",
         'exit "$secret_scan_status"',
+        "(AKIA|ASIA)[0-9A-Z]{12,}",
+        "github_pat_[A-Za-z0-9_]{20,}",
     )
     for token in required:
         if token not in source:
