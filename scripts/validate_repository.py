@@ -13,6 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_PATH = ROOT / "CODESTRA_UPSTREAM.json"
 SYNC_WORKFLOW_PATH = ROOT / ".github/workflows/upstream-source-sync.yml"
 VALIDATE_WORKFLOW_PATH = ROOT / ".github/workflows/validate.yml"
+SECRET_SCANNER_PATH = ROOT / "scripts/reject_repository_secrets.sh"
+
+APPROVED_ACTION_REFERENCES = {
+    "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+}
 
 SANITIZED_SECRET_FIXTURES = {
     Path("upstream/sdk/helper/testhelpers/pki/cert.p12"):
@@ -62,7 +68,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     required = (
         "[[ \"$UPSTREAM_REF\" =~ ^[0-9a-f]{40}$ ]]",
         "[[ \"$UPSTREAM_SHA\" == \"$UPSTREAM_REF\" ]]",
-        'SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_SHA}"',
+        'SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
         'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',
@@ -70,6 +76,13 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "Deployment remains disabled",
         "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
         "synchronized_at = previous_lock.get('synchronized_at', synchronized_at)",
+        'git ls-remote --exit-code --heads origin "refs/heads/${SYNC_BRANCH}"',
+        '[[ "$(git show -s --format=%P "refs/remotes/origin/${SYNC_BRANCH}")" == "$GITHUB_SHA" ]]',
+        'git switch --create "$SYNC_BRANCH" --track',
+        "(( existing_sync_branch == 1 )) || exit 0",
+        "Existing sync branch differs from deterministic rebuild.",
+        'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main',
+        "Multiple open pull requests claim the sync branch.",
     )
     for token in required:
         if token not in source:
@@ -77,12 +90,18 @@ def validate_sync_workflow(source: str, document: dict) -> None:
 
 
 def validate_workflow_pins(source: str) -> None:
-    if "actions/checkout@11d5960a326750d5838078e36cf38b85af677262" not in source:
-        raise ValueError("checkout_action_not_pinned")
-    if "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" not in source:
-        raise ValueError("setup_python_action_not_pinned")
-    if re.search(r"uses:\s+actions/(?:checkout|setup-python)@v\d+", source):
-        raise ValueError("mutable_action_reference")
+    use_keys = re.findall(r"(?m)^[ \t]*(?:-[ \t]*)?uses[ \t]*:", source)
+    references = re.findall(
+        r"(?m)^[ \t]*(?:-[ \t]*)?uses[ \t]*:[ \t]*([^\s#]+)[ \t]*(?:#.*)?$",
+        source,
+    )
+    if not references or len(references) != len(use_keys):
+        raise ValueError("action_reference_must_be_explicit")
+    if not APPROVED_ACTION_REFERENCES <= set(references):
+        raise ValueError("required_action_reference_missing")
+    for reference in references:
+        if reference not in APPROVED_ACTION_REFERENCES:
+            raise ValueError(f"unapproved_or_mutable_action_reference:{reference}")
     required = (
         "fetch-depth: 0",
         'base_sha="${{ github.event.pull_request.base.sha }}"',
@@ -93,6 +112,28 @@ def validate_workflow_pins(source: str) -> None:
             raise ValueError(f"committed_whitespace_gate_missing:{token}")
     if re.search(r"^\s*git diff --check\s*$", source, re.MULTILINE):
         raise ValueError("whitespace_check_must_use_committed_range")
+
+
+def validate_secret_scanner(source: str) -> None:
+    if "--exclude-dir=tests" in source or '$search_root/tests' in source:
+        raise ValueError("imported_tests_must_be_secret_scanned")
+    if re.search(r"grep\s+-[^\n]*I", source):
+        raise ValueError("binary_secret_scan_must_not_be_skipped")
+    required = (
+        'find "$search_root"',
+        '-path "$search_root/.git"',
+        "-type f -o -type l",
+        '[[ -L "$path" ]]',
+        "grep -aEiq",
+        "find_status=$?",
+        "secret_scan_status=$?",
+        'exit "$secret_scan_status"',
+    )
+    for token in required:
+        if token not in source:
+            raise ValueError(f"secret_scan_boundary_missing:{token}")
+    if re.search(r"!\s+grep\s+-R", source):
+        raise ValueError("secret_scan_errors_must_fail_closed")
 
 
 def validate_secret_file_policy(root: Path) -> None:
@@ -121,17 +162,24 @@ def validate_secret_file_policy(root: Path) -> None:
 
 
 def validate_repository() -> None:
-    for path in (UPSTREAM_PATH, SYNC_WORKFLOW_PATH, VALIDATE_WORKFLOW_PATH):
+    for path in (
+        UPSTREAM_PATH,
+        SYNC_WORKFLOW_PATH,
+        VALIDATE_WORKFLOW_PATH,
+        SECRET_SCANNER_PATH,
+    ):
         if not path.is_file() or path.is_symlink():
             raise ValueError(f"required_regular_file_missing:{path.relative_to(ROOT)}")
     upstream = json.loads(UPSTREAM_PATH.read_text(encoding="utf-8"))
     sync_source = SYNC_WORKFLOW_PATH.read_text(encoding="utf-8")
     sync_document = yaml.safe_load(sync_source)
     validate_source = VALIDATE_WORKFLOW_PATH.read_text(encoding="utf-8")
+    secret_scanner_source = SECRET_SCANNER_PATH.read_text(encoding="utf-8")
     yaml.safe_load(validate_source)
     validate_upstream_authority(upstream)
     validate_sync_workflow(sync_source, sync_document)
     validate_workflow_pins(sync_source + "\n" + validate_source)
+    validate_secret_scanner(secret_scanner_source)
 
     validate_secret_file_policy(ROOT)
 
