@@ -32,6 +32,11 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         policy["runtimeApplyAuthorized"] = True
         self.reject(policy)
 
+    def test_boolean_schema_version_is_rejected(self) -> None:
+        policy = copy.deepcopy(self.policy)
+        policy["schemaVersion"] = True
+        self.reject(policy)
+
     def test_cross_environment_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)
         role = next(item for item in policy["roles"] if item["environment"] == "staging")
