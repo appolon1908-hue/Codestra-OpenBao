@@ -14,6 +14,13 @@ EXPECTED_SERVICES = {
     "kong-gateway", "middleware-api", "middleware-worker",
     "n8n-automation", "odoo-integration",
 }
+EXPECTED_NAMESPACES = {
+    "kong-gateway": "kong/",
+    "middleware-api": "middleware/api/",
+    "middleware-worker": "middleware/worker/",
+    "n8n-automation": "n8n/middleware-client/",
+    "odoo-integration": "odoo/integration/",
+}
 FORBIDDEN_PATH_PARTS = {"*", "..", "//"}
 
 
@@ -71,7 +78,7 @@ def validate(policy: dict) -> None:
     seen: set[tuple[str, str]] = set()
     coverage: dict[str, set[str]] = {"production": set(), "staging": set()}
     for role in roles:
-        if set(role) != {"environment", "serviceIdentity", "pathPrefixes", "operations"}:
+        if set(role) != {"environment", "serviceIdentity", "boundClaims", "pathPrefixes", "operations"}:
             fail("role fields drifted")
         environment = role["environment"]
         identity = role["serviceIdentity"]
@@ -82,11 +89,21 @@ def validate(policy: dict) -> None:
             fail("duplicate environment/service role")
         seen.add(key)
         coverage[environment].add(identity)
+        if role["boundClaims"] != {
+            "azp": identity,
+            "codestra_environment": environment,
+        }:
+            fail("JWT role is not bound to exact service and environment claims")
         if role["operations"] != ["read"]:
             fail("workloads may only read exact secret prefixes")
         prefixes = role["pathPrefixes"]
         if not isinstance(prefixes, list) or not prefixes:
             fail("role path prefix missing")
+        required_prefixes = [
+            f"codestra/{environment}/{EXPECTED_NAMESPACES[identity]}"
+        ]
+        if prefixes != required_prefixes:
+            fail("role grant is outside its exact service namespace")
         required_root = f"codestra/{environment}/"
         for prefix in prefixes:
             if not prefix.startswith(required_root) or not prefix.endswith("/"):
