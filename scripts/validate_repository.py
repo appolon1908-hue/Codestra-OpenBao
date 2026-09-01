@@ -192,9 +192,14 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "--base development",
         "Deployment remains disabled",
         "CODESTRA_UPSTREAM_SANITIZATION.json",
+        "scripts/install_ci_tools.sh gitleaks",
+        "<CODESTRA_GITLEAKS_FIXTURE_INVALID>",
+        "Gitleaks finding outside reviewed fixture paths",
         "original_block_sha256",
         "PRIVATE_KEY_TEST_FIXTURE_REMOVED",
         "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
+        "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID",
+        "b\\.[A-Za-z0-9_-]{64,}",
         "(?:AKIA|ASIA)[0-9A-Z]{12,}",
         "github_pat_[A-Za-z0-9_]{20,}",
         "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
@@ -302,18 +307,20 @@ def validate_secret_scanner(source: str) -> None:
         raise ValueError("imported_tests_must_be_secret_scanned")
     if re.search(r"grep\s+-[^\n]*I", source):
         raise ValueError("binary_secret_scan_must_not_be_skipped")
-    if "[^[:space:]<\\\"']+" not in source:
+    if r"""[\"'][^[:space:]<\"']+[\"']""" not in source:
         raise ValueError("sanitized_client_secret_placeholder_must_not_match")
     required = (
         'find "$search_root"',
         '-path "$search_root/.git"',
         "-type f -o -type l",
         '[[ -L "$path" ]]',
-        "grep -aEiq",
+        "grep -aEq",
         "find_status=$?",
         "secret_scan_status=$?",
         'exit "$secret_scan_status"',
         "(AKIA|ASIA)[0-9A-Z]{12,}",
+        "s\\.[A-Za-z0-9_-]{24}",
+        "b\\.[A-Za-z0-9_-]{64,}",
         "github_pat_[A-Za-z0-9_]{20,}",
     )
     for token in required:
