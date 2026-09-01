@@ -10,6 +10,12 @@ Exposure policy: PROTECTED BROWSER/API ACCESS ONLY. `bao.codestra.media` may be 
 
 Upstream/downstream: approved platform services authenticate to OpenBao using least-privilege machine identities -> OpenBao returns scoped secrets/leases -> audit logs and operational health flow to the observability stack. OpenBao must never be used as a general data store or bypass Middleware authorization.
 
-Persistent branch model: `main`, `development`, `test`, `staging`, `production`. Temporary branches: `feature/*`, `fix/*`, `upgrade/*`, `security/*`, `docs/*`, `hotfix/*`, `release/*`, `rollback/*`.
+Persistent branch model: `development`, `test`, `staging`, `production`, `main`. Temporary branches: `remediation/*`, `feature/*`, `fix/*`, `upgrade/*`, `security/*`, `docs/*`, `hotfix/*`, `release/*`, `rollback/*`.
 
-Promotion: feature/fix/upgrade/security -> development -> test -> staging -> production -> main. Never upgrade directly on staging, production, or main.
+Promotion: `remediation/openbao-production-completion-v1 -> development -> test -> staging -> production -> main`. Upstream sync branches may target `development` through review. Never upgrade directly on test, staging, production, or main.
+
+Runtime mutation is not implied by a merge. A checksummed plan must be created
+from the exact current environment branch, independently reviewed, and applied
+without regeneration only after `@kazan555` approves the protected environment.
+Initialization, recovery custody, business-effect authorization and SSH access
+are separate authorities.

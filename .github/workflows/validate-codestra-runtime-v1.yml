@@ -29,7 +29,9 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
 
       - name: Determine locked native-source availability
         id: source
@@ -42,7 +44,7 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         if: steps.source.outputs.available == 'true'
         with:
           go-version-file: upstream/go.mod
@@ -149,7 +151,10 @@ jobs:
           assert 'default_lease_ttl = "15m"' in config
           assert 'max_lease_ttl = "1h"' in config
           assert 'unauthenticated_metrics_access = false' in config
-          assert 'disable_mlock = false' in config
+          # OpenBao v2.6.2 removed mlock support and rejects the legacy
+          # disable_mlock directive. Memory protection is enforced through the
+          # repository's swap gate instead.
+          assert 'disable_mlock' not in config
           assert 'raw_storage_endpoint = false' in config
           assert 'path "secret/' not in policies
           assert 'path "pki_observability/' not in policies
@@ -158,7 +163,7 @@ jobs:
           assert 'path "*"' not in policies
           assert "ports" not in service
           assert service["read_only"] is True
-          assert "IPC_LOCK" in service["cap_add"]
+          assert "IPC_LOCK" not in service.get("cap_add", [])
           assert "init" not in " ".join(service["command"]).lower()
           assert "latest" not in compose_text.lower()
           assert runtime["activation"] and all(value is False for value in runtime["activation"].values())
@@ -175,6 +180,7 @@ jobs:
           CODESTRA_WORKLOAD_CA_FILE: /tmp/codestra-workload-ca.pem
           OPENBAO_OPERATOR_CERT_FILE: /tmp/openbao-operator-cert.pem
           OPENBAO_OPERATOR_KEY_FILE: /tmp/openbao-operator-key.pem
+          OPENBAO_PLUGIN_DIR: /tmp/openbao-plugins
         run: |
           for file in \
             "$OPENBAO_SERVER_CERT_FILE" \

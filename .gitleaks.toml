@@ -1,0 +1,9 @@
+title = "Codestra OpenBao secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Non-secret database lease policy duration in the historical desired-state document; reviewed 2026-09-01 by platform-security."
+paths = ['''^codestra/runtime-v1/desired-state\.json$''']
+regexes = ['''^15m-default-1h-maximum$''']
