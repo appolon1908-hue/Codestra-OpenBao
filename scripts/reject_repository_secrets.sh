@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 search_root="${1:-.}"
-pattern="(BEGIN ([A-Z0-9][A-Z0-9 -]{0,63} )?PRIVATE KEY( BLOCK)?|[\"']?Authorization[\"']?[[:space:]]*:[[:space:]]*[\"']?[[:space:]]*Bearer[[:space:]]+[-A-Za-z0-9._~+/]{16,}=*|[\"']?client_secret[\"']?[[:space:]]*[:=][[:space:]]*[^[:space:]<]+|(hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}|s\.[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|SK[0-9a-fA-F]{32}|xox(a|b|p|r|s)-[A-Za-z0-9-]{12,}|xapp-[A-Za-z0-9-]{12,})"
+pattern="(BEGIN ([A-Z0-9][A-Z0-9 -]{0,63} )?PRIVATE KEY( BLOCK)?|[\"']?Authorization[\"']?[[:space:]]*:[[:space:]]*[\"']?[[:space:]]*Bearer[[:space:]]+[-A-Za-z0-9._~+/]{16,}=*|[\"']?client_secret[\"']?[[:space:]]*[:=][[:space:]]*[^[:space:]<]+|(hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}|s\.[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|SK[0-9a-fA-F]{32}|xox(a|b|p|r|s)-[A-Za-z0-9-]{12,}|xapp-[A-Za-z0-9-]{12,})"
 path_list="$(mktemp)"
 trap 'rm -f -- "$path_list"' EXIT
 

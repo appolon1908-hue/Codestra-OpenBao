@@ -163,6 +163,7 @@ jobs:
               (r'48a2c2f9-0e52-34bc-d7e6-050925c06ced', 'REKEY_FIXTURE_ID_INVALID', 0),
               # Common provider token shapes used in tests/examples.
               (r'gh[pousr]_[A-Za-z0-9]{20,}', 'GITHUB_TOKEN_FIXTURE_INVALID', 0),
+              (r'github_pat_[A-Za-z0-9_]{20,}', 'GITHUB_TOKEN_FIXTURE_INVALID', 0),
               (r'SK[0-9a-fA-F]{32}', 'TWILIO_KEY_FIXTURE_INVALID', 0),
               (r'xox(?:a|b|p|r|s)-[A-Za-z0-9-]{12,}', 'SLACK_TOKEN_FIXTURE_INVALID', 0),
               (r'xapp-[A-Za-z0-9-]{12,}', 'SLACK_APP_TOKEN_FIXTURE_INVALID', 0),

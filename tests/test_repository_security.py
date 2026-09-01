@@ -125,6 +125,7 @@ class RepositorySecurityTests(unittest.TestCase):
             imported.unlink()
             credential_shapes = (
                 "gh" + "p_" + ("A" * 24),
+                "github" + "_pat_" + ("G" * 24),
                 "AK" + "IA" + ("B" * 16),
                 "hv" + "s." + ("C" * 16),
                 "s." + ("D" * 24),
