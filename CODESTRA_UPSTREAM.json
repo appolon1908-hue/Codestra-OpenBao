@@ -4,7 +4,7 @@
   "codestra_role": "principal-secrets-and-encryption-authority",
   "upstream_repository": "openbao/openbao",
   "upstream_clone_url": "https://github.com/openbao/openbao.git",
-  "upstream_ref": "main",
+  "upstream_ref": "64583d09374c35a278c8f00e30dfb064cf073e22",
   "import_path": "upstream",
   "deployment_enabled": false,
   "secret_material_allowed_in_git": false,
