@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 
 import yaml
@@ -26,6 +27,63 @@ SANITIZED_SECRET_FIXTURES = {
     Path("upstream/command/testdata/ossl-key.pem"):
         "OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
 }
+
+
+def _logical_shell_lines(source: str) -> tuple[str, ...]:
+    records: list[str] = []
+    pending = ""
+    for raw in source.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        pending = f"{pending} {line}".strip()
+        if pending.endswith("\\"):
+            pending = pending[:-1].rstrip()
+            continue
+        records.append(pending)
+        pending = ""
+    if pending:
+        records.append(pending)
+    return tuple(records)
+
+
+def reject_protected_pushes(source: str) -> None:
+    protected = {"main", "staging", "production"}
+    separators = {";", "&&", "||", "|", "&"}
+    for line in _logical_shell_lines(source):
+        if re.search(r"\bgit\b.*\bpush\b", line) is None:
+            continue
+        try:
+            words = shlex.split(line, comments=True, posix=True)
+        except ValueError as exc:
+            raise ValueError("sync_shell_parse_failed") from exc
+        for index, word in enumerate(words):
+            if word != "git":
+                continue
+            command_index = index + 1
+            while command_index < len(words) and words[command_index].startswith("-"):
+                option = words[command_index]
+                command_index += 2 if option in {"-c", "-C", "--git-dir", "--work-tree"} else 1
+            if command_index >= len(words) or words[command_index] != "push":
+                continue
+            for candidate in words[command_index + 1 :]:
+                if candidate in separators:
+                    break
+                if candidate in {
+                    "--all",
+                    "--branches",
+                    "--force",
+                    "--force-with-lease",
+                    "--mirror",
+                    "-f",
+                } or candidate.startswith(("--force=", "--force-with-lease=")):
+                    raise ValueError("protected_branch_sync_forbidden:push_option")
+                refspec = candidate.lstrip("+")
+                if any(marker in refspec for marker in ("*", "?", "[")):
+                    raise ValueError("protected_branch_sync_forbidden:wildcard")
+                destination = refspec.rsplit(":", 1)[-1].removeprefix("refs/heads/")
+                if destination in protected:
+                    raise ValueError("protected_branch_sync_forbidden:refspec")
 
 
 def validate_upstream_authority(data: dict) -> None:
@@ -56,6 +114,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     }
     if permissions != expected_permissions:
         raise ValueError("sync_permissions_must_only_support_reviewed_pr")
+    reject_protected_pushes(source)
     forbidden_patterns = (
         r"git\s+push\s+origin\s+['\"]?HEAD:(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",
         r"git\s+push\s+origin\s+['\"]?(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",

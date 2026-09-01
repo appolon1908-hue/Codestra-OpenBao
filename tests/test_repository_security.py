@@ -58,6 +58,21 @@ class RepositorySecurityTests(unittest.TestCase):
                 ):
                     VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
 
+    def test_every_push_refspec_is_validated(self) -> None:
+        safe = 'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"'
+        for suffix in (
+            " HEAD:refs/heads/main",
+            " HEAD:refs/heads/staging",
+            " HEAD:refs/heads/production",
+            " \\\n            HEAD:refs/heads/main",
+        ):
+            with self.subTest(suffix=suffix):
+                unsafe = self.sync_source.replace(safe, safe + suffix)
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden"
+                ):
+                    VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
+
     def test_workflow_actions_are_immutable(self) -> None:
         validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
         combined = self.sync_source + "\n" + validate_source
