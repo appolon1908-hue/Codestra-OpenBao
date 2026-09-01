@@ -13,11 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_PATH = ROOT / "CODESTRA_UPSTREAM.json"
 SYNC_WORKFLOW_PATH = ROOT / ".github/workflows/upstream-source-sync.yml"
 VALIDATE_WORKFLOW_PATH = ROOT / ".github/workflows/validate.yml"
+WORKFLOW_DIR = ROOT / ".github/workflows"
 SECRET_SCANNER_PATH = ROOT / "scripts/reject_repository_secrets.sh"
 
 APPROVED_ACTION_REFERENCES = {
-    "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
-    "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+    "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+    "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+    "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
+    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0",
+    "actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661",
+    "sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62",
+    "./.github/workflows/_deploy-saved-plan.yml",
 }
 
 SANITIZED_SECRET_FIXTURES = {
@@ -125,11 +132,61 @@ def validate_workflow_pins(source: str) -> None:
     )
     if not references or len(references) != len(use_keys):
         raise ValueError("action_reference_must_be_explicit")
-    if not APPROVED_ACTION_REFERENCES <= set(references):
-        raise ValueError("required_action_reference_missing")
     for reference in references:
         if reference not in APPROVED_ACTION_REFERENCES:
             raise ValueError(f"unapproved_or_mutable_action_reference:{reference}")
+
+
+def validate_workflow_security(path: Path, source: str, document: dict) -> None:
+    validate_workflow_pins(source)
+    permissions = document.get("permissions")
+    if not isinstance(permissions, dict) or not permissions:
+        raise ValueError(f"workflow_permissions_must_be_explicit:{path.name}")
+    write_permissions = {
+        key for key, value in permissions.items() if str(value).lower() == "write"
+    }
+    allowed_write_permissions = {
+        "upstream-source-sync.yml": {"actions", "contents", "pull-requests"},
+        "release.yml": {"attestations", "id-token"},
+    }.get(path.name, set())
+    if write_permissions != allowed_write_permissions:
+        raise ValueError(f"workflow_write_permissions_drift:{path.name}")
+
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict) or not jobs:
+        raise ValueError(f"workflow_jobs_missing:{path.name}")
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            raise ValueError(f"workflow_job_invalid:{path.name}:{job_name}")
+        steps = job.get("steps", [])
+        if not isinstance(steps, list):
+            raise ValueError(f"workflow_steps_invalid:{path.name}:{job_name}")
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            reference = step.get("uses")
+            if not isinstance(reference, str) or not reference.startswith("actions/checkout@"):
+                continue
+            options = step.get("with") or {}
+            expected = path.name == "upstream-source-sync.yml"
+            if options.get("persist-credentials") is not expected:
+                raise ValueError(
+                    f"checkout_credential_boundary_drift:{path.name}:{job_name}"
+                )
+
+
+def validate_all_workflows() -> None:
+    for path in sorted(WORKFLOW_DIR.glob("*.yml")):
+        if not path.is_file() or path.is_symlink():
+            raise ValueError(f"workflow_must_be_regular_file:{path.name}")
+        source = path.read_text(encoding="utf-8")
+        document = yaml.safe_load(source)
+        if not isinstance(document, dict):
+            raise ValueError(f"workflow_document_invalid:{path.name}")
+        validate_workflow_security(path, source, document)
+
+
+def validate_whitespace_gate(source: str) -> None:
     required = (
         "fetch-depth: 0",
         'base_sha="${{ github.event.pull_request.base.sha }}"',
@@ -206,7 +263,8 @@ def validate_repository() -> None:
     yaml.safe_load(validate_source)
     validate_upstream_authority(upstream)
     validate_sync_workflow(sync_source, sync_document)
-    validate_workflow_pins(sync_source + "\n" + validate_source)
+    validate_all_workflows()
+    validate_whitespace_gate(validate_source)
     validate_secret_scanner(secret_scanner_source)
 
     validate_secret_file_policy(ROOT)

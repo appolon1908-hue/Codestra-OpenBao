@@ -7,6 +7,7 @@ recipient_file="${OPENBAO_AGE_RECIPIENT_FILE:?set age recipient file}"
 identity_file="${OPENBAO_AGE_IDENTITY_FILE:?set age identity for verification}"
 offhost_remote="${OPENBAO_OFFHOST_REMOTE:?set immutable rclone destination}"
 immutability_attestation="${OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION:?set storage attestation JSON}"
+evidence="${OPENBAO_BACKUP_EVIDENCE:-}"
 
 [[ "$environment" =~ ^(development|test|staging|production)$ ]]
 for command in bao jq age rclone sha256sum shred; do
@@ -71,6 +72,18 @@ rclone copyto --immutable --no-traverse --quiet "$artifact" "$offhost_remote/$(b
 rclone copyto --immutable --no-traverse --quiet "$checksum" "$offhost_remote/$(basename "$checksum")"
 remote_checksum="$(rclone cat "$offhost_remote/$(basename "$checksum")")"
 [[ "$remote_checksum" == "$(cat "$checksum")" ]]
+
+if [[ -n "$evidence" ]]; then
+  jq -n \
+    --arg environment "$environment" \
+    --arg artifact "$(basename "$artifact")" \
+    --arg sha256 "$artifact_sha" \
+    --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson sizeBytes "$(stat -c %s "$artifact")" \
+    '{schemaVersion:1,environment:$environment,artifact:$artifact,sha256:$sha256,sizeBytes:$sizeBytes,completedAt:$completedAt,backup:"PASS",offHostBackup:"PASS",checksumVerified:true,immutabilityVerified:true,secretValuesIncluded:false}' \
+    > "$evidence"
+  chmod 400 "$evidence"
+fi
 
 cleanup
 trap - EXIT

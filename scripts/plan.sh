@@ -41,7 +41,7 @@ mount="$(jq -r '.mount' openbao/auth/jwt-roles.v1.json)"
 if jq -e --arg path "${mount}/" '.[$path].type == "jwt"' "$live_dir/auth.json" >/dev/null; then
   bao read -format=json "auth/${mount}/config" > "$live_dir/jwt-config.json"
   set +e
-  bao list -format=json "auth/${mount}/cel/roles" > "$live_dir/jwt-roles.json" 2>/dev/null
+  bao list -format=json "auth/${mount}/cel/role" > "$live_dir/jwt-roles.json" 2>/dev/null
   list_status=$?
   set -e
   if [[ "$list_status" != 0 ]]; then printf '[]\n' > "$live_dir/jwt-roles.json"; fi

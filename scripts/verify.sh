@@ -35,7 +35,9 @@ actual_image="$(jq -r '.[0].Image' <<<"$container_json")"
 actual_source="$(jq -r '.[0].Config.Labels["com.codestra.source-sha"] // ""' <<<"$container_json")"
 readonly_root="$(jq -r '.[0].HostConfig.ReadonlyRootfs' <<<"$container_json")"
 published_ports="$(jq '.[0].HostConfig.PortBindings // {} | length' <<<"$container_json")"
-[[ "$actual_image" == "$expected_image" || "$actual_image" == "sha256:${expected_image#sha256:}" ]]
+image_json="$(docker image inspect "$actual_image")"
+jq -e --arg expected "ghcr.io/openbao/openbao@${expected_image}" \
+  '.[0].RepoDigests | index($expected) != null' <<<"$image_json" >/dev/null
 [[ "$actual_source" == "$expected_source" ]]
 [[ "$readonly_root" == true ]]
 [[ "$published_ports" == 0 ]]

@@ -47,18 +47,27 @@ class RepositorySecurityTests(unittest.TestCase):
             VALIDATOR.validate_sync_workflow(unsafe, self.sync_document)
 
     def test_workflow_actions_are_immutable(self) -> None:
-        validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
-        combined = self.sync_source + "\n" + validate_source
-        VALIDATOR.validate_workflow_pins(combined)
+        VALIDATOR.validate_all_workflows()
         mutable = self.sync_source.replace(
-            "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
             "actions/checkout@main",
         )
         with self.assertRaisesRegex(ValueError, "unapproved_or_mutable"):
-            VALIDATOR.validate_workflow_pins(mutable + "\n" + validate_source)
-        unapproved = combined + "\n      - uses: vendor/action@" + ("a" * 40) + "\n"
+            VALIDATOR.validate_workflow_pins(mutable)
+        unapproved = self.sync_source + "\n      - uses: vendor/action@" + ("a" * 40) + "\n"
         with self.assertRaisesRegex(ValueError, "unapproved_or_mutable"):
             VALIDATOR.validate_workflow_pins(unapproved)
+
+    def test_checkout_credentials_are_disabled_except_reviewed_sync_writer(self) -> None:
+        VALIDATOR.validate_all_workflows()
+        validate_path = ROOT / ".github/workflows/validate.yml"
+        source = validate_path.read_text(encoding="utf-8")
+        document = yaml.safe_load(source)
+        document["jobs"]["source-authority"]["steps"][0]["with"][
+            "persist-credentials"
+        ] = True
+        with self.assertRaisesRegex(ValueError, "checkout_credential_boundary_drift"):
+            VALIDATOR.validate_workflow_security(validate_path, source, document)
 
     def test_whitespace_gate_checks_the_committed_base_to_head_range(self) -> None:
         source = (ROOT / ".github/workflows/validate.yml").read_text()
