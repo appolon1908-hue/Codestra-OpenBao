@@ -59,7 +59,11 @@ def validate(policy: dict) -> None:
         "containerImageBakeAllowed": False,
         "gitMaterializationAllowed": False,
         "fileMode": "0400",
-        "renewableLeasesRequired": True,
+        "staticKvSecretLeaseRenewalRequired": False,
+        "staticKvRerenderOnChangeRequired": True,
+        "agentAuthTokenRenewalRequired": True,
+        "dynamicSecretLeaseRenewalRequired": True,
+        "dynamicSecretRevocationOnShutdownRequired": True,
     }:
         fail("secret injection must be file-based and fail closed")
     rotation = policy["rotation"]
@@ -132,8 +136,9 @@ def validate(policy: dict) -> None:
                 fail("role grant overlaps an explicit deny boundary")
 
     required_evidence = {
-        "audit_event", "lease_id_hash", "policy_name", "role_name",
-        "sanitized_path_prefix", "service_identity",
+        "agent_auth_token_accessor_hash", "audit_event",
+        "dynamic_lease_id_hash_if_applicable", "policy_name", "role_name",
+        "sanitized_path_prefix", "secret_version", "service_identity",
     }
     if policy["requiredEvidence"] != sorted(required_evidence):
         fail("required evidence drift")
