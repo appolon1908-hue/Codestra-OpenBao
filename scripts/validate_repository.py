@@ -83,6 +83,16 @@ def validate_workflow_pins(source: str) -> None:
         raise ValueError("setup_python_action_not_pinned")
     if re.search(r"uses:\s+actions/(?:checkout|setup-python)@v\d+", source):
         raise ValueError("mutable_action_reference")
+    required = (
+        "fetch-depth: 0",
+        'base_sha="${{ github.event.pull_request.base.sha }}"',
+        'git diff --check "$base_sha" "$GITHUB_SHA" -- . \':(exclude)upstream\'',
+    )
+    for token in required:
+        if token not in source:
+            raise ValueError(f"committed_whitespace_gate_missing:{token}")
+    if re.search(r"^\s*git diff --check\s*$", source, re.MULTILINE):
+        raise ValueError("whitespace_check_must_use_committed_range")
 
 
 def validate_secret_file_policy(root: Path) -> None:
