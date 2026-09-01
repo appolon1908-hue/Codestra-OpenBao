@@ -14,6 +14,13 @@ UPSTREAM_PATH = ROOT / "CODESTRA_UPSTREAM.json"
 SYNC_WORKFLOW_PATH = ROOT / ".github/workflows/upstream-source-sync.yml"
 VALIDATE_WORKFLOW_PATH = ROOT / ".github/workflows/validate.yml"
 
+SANITIZED_SECRET_FIXTURES = {
+    Path("upstream/sdk/helper/testhelpers/pki/cert.p12"):
+        "OPENBAO_PKCS12_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
+    Path("upstream/command/testdata/ossl-key.pem"):
+        "OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
+}
+
 
 def validate_upstream_authority(data: dict) -> None:
     expected = {
@@ -36,7 +43,12 @@ def validate_upstream_authority(data: dict) -> None:
 
 def validate_sync_workflow(source: str, document: dict) -> None:
     permissions = document.get("permissions") or {}
-    if permissions.get("contents") != "write" or permissions.get("pull-requests") != "write":
+    expected_permissions = {
+        "actions": "write",
+        "contents": "write",
+        "pull-requests": "write",
+    }
+    if permissions != expected_permissions:
         raise ValueError("sync_permissions_must_only_support_reviewed_pr")
     forbidden_patterns = (
         r"git\s+push\s+origin\s+HEAD:(?:main|staging|production)(?:\s|$)",
@@ -53,6 +65,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         'SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_SHA}"',
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
+        'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',
         "--base main",
         "Deployment remains disabled",
         "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
@@ -72,6 +85,31 @@ def validate_workflow_pins(source: str) -> None:
         raise ValueError("mutable_action_reference")
 
 
+def validate_secret_file_policy(root: Path) -> None:
+    forbidden_suffixes = (
+        ".pem",
+        ".key",
+        ".p12",
+        ".pfx",
+        ".jks",
+        ".keystore",
+        ".unseal",
+        ".token",
+        ".secret",
+    )
+    for path in root.rglob("*"):
+        if ".git" in path.parts or not path.is_file():
+            continue
+        relative = path.relative_to(root)
+        if path.name != ".gitignore" and path.name.lower().endswith(forbidden_suffixes):
+            expected_fixture = SANITIZED_SECRET_FIXTURES.get(relative)
+            if expected_fixture is not None:
+                if path.read_text(encoding="utf-8") != expected_fixture:
+                    raise ValueError(f"sanitized_fixture_content_drift:{relative}")
+                continue
+            raise ValueError(f"forbidden_secret_file:{relative}")
+
+
 def validate_repository() -> None:
     for path in (UPSTREAM_PATH, SYNC_WORKFLOW_PATH, VALIDATE_WORKFLOW_PATH):
         if not path.is_file() or path.is_symlink():
@@ -85,22 +123,7 @@ def validate_repository() -> None:
     validate_sync_workflow(sync_source, sync_document)
     validate_workflow_pins(sync_source + "\n" + validate_source)
 
-    forbidden_suffixes = (
-        ".pem",
-        ".key",
-        ".p12",
-        ".pfx",
-        ".jks",
-        ".keystore",
-        ".unseal",
-        ".token",
-        ".secret",
-    )
-    for path in ROOT.rglob("*"):
-        if ".git" in path.parts or not path.is_file():
-            continue
-        if path.name != ".gitignore" and path.name.lower().endswith(forbidden_suffixes):
-            raise ValueError(f"forbidden_secret_file:{path.relative_to(ROOT)}")
+    validate_secret_file_policy(ROOT)
 
 
 if __name__ == "__main__":
