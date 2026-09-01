@@ -50,20 +50,20 @@ def _logical_shell_lines(source: str) -> tuple[str, ...]:
 
 def reject_protected_pushes(source: str) -> None:
     protected = {"main", "staging", "production"}
-    separators = {";", "&&", "||", "|", "&"}
+    separators = {";", "&&", "||", "|", "&", "(", ")", "<", ">"}
     for line in _logical_shell_lines(source):
         executable_probe = re.sub(r"\\([^\n])", r"\1", line)
         if re.search(r"\bgit\b.*\bpush\b", executable_probe) is None:
             continue
         try:
-            lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|")
+            lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|<>")
             lexer.whitespace_split = True
             lexer.commenters = "#"
             words = list(lexer)
         except ValueError as exc:
             raise ValueError("sync_shell_parse_failed") from exc
         for index, word in enumerate(words):
-            if word != "git":
+            if Path(word).name != "git":
                 continue
             command_index = index + 1
             while command_index < len(words) and words[command_index].startswith("-"):
@@ -84,11 +84,37 @@ def reject_protected_pushes(source: str) -> None:
                 } or candidate.startswith(("--force=", "--force-with-lease=")):
                     raise ValueError("protected_branch_sync_forbidden:push_option")
                 refspec = candidate.lstrip("+")
+                if refspec == "HEAD:refs/heads/${SYNC_BRANCH}":
+                    continue
+                if "$" in refspec or "`" in refspec:
+                    raise ValueError(
+                        "protected_branch_sync_forbidden:unresolved_refspec"
+                    )
                 if any(marker in refspec for marker in ("*", "?", "[")):
                     raise ValueError("protected_branch_sync_forbidden:wildcard")
                 destination = refspec.rsplit(":", 1)[-1].removeprefix("refs/heads/")
                 if destination in protected:
                     raise ValueError("protected_branch_sync_forbidden:refspec")
+
+
+def validate_sync_branch_authority(source: str) -> None:
+    """Require one immutable, deterministic authority for the sync destination."""
+
+    expected = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+    lines = _logical_shell_lines(source)
+    if lines.count(expected) != 1:
+        raise ValueError("sync_branch_authority_invalid")
+    for line in lines:
+        if line == expected:
+            continue
+        executable_probe = re.sub(r"\\([^\n])", r"\1", line)
+        if re.search(r"(?:^|[();&|<>\s])SYNC_BRANCH\s*=", executable_probe):
+            raise ValueError("sync_branch_authority_invalid")
+        if re.search(
+            r"\b(?:unset|read|mapfile|declare|typeset|local|export|readonly|printf)\b[^\n]*\bSYNC_BRANCH\b",
+            executable_probe,
+        ):
+            raise ValueError("sync_branch_authority_invalid")
 
 
 def validate_upstream_authority(data: dict) -> None:
@@ -119,6 +145,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     }
     if permissions != expected_permissions:
         raise ValueError("sync_permissions_must_only_support_reviewed_pr")
+    validate_sync_branch_authority(source)
     reject_protected_pushes(source)
     forbidden_patterns = (
         r"git\s+push\s+origin\s+['\"]?HEAD:(?:refs/heads/)?(?:main|staging|production)['\"]?(?:\s|$)",
@@ -132,7 +159,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     required = (
         "[[ \"$UPSTREAM_REF\" =~ ^[0-9a-f]{40}$ ]]",
         "[[ \"$UPSTREAM_SHA\" == \"$UPSTREAM_REF\" ]]",
-        'SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
+        'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
         'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',

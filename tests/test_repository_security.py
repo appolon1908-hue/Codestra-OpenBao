@@ -86,6 +86,33 @@ class RepositorySecurityTests(unittest.TestCase):
                 ):
                     VALIDATOR.reject_protected_pushes(command)
 
+    def test_all_shell_metacharacters_and_git_paths_are_tokenized(self) -> None:
+        for command in (
+            "(git push origin HEAD:refs/heads/main)",
+            "git push origin HEAD:refs/heads/staging>/dev/null",
+            "/usr/bin/git -c protocol.version=2 push origin HEAD:refs/heads/main",
+        ):
+            with self.subTest(command=command):
+                with self.assertRaisesRegex(
+                    ValueError, "protected_branch_sync_forbidden"
+                ):
+                    VALIDATOR.reject_protected_pushes(command)
+
+    def test_sync_branch_destination_is_immutable_and_fully_resolved(self) -> None:
+        assignment = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+        self.assertIn(assignment, self.sync_source)
+        reassigned = self.sync_source.replace(
+            assignment, assignment + "\n          SYNC_BRANCH=main"
+        )
+        with self.assertRaisesRegex(ValueError, "sync_branch_authority_invalid"):
+            VALIDATOR.validate_sync_workflow(reassigned, yaml.safe_load(reassigned))
+        with self.assertRaisesRegex(
+            ValueError, "protected_branch_sync_forbidden:unresolved_refspec"
+        ):
+            VALIDATOR.reject_protected_pushes(
+                "git push origin HEAD:refs/heads/${UNTRUSTED_BRANCH}"
+            )
+
     def test_workflow_actions_are_immutable(self) -> None:
         validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
         combined = self.sync_source + "\n" + validate_source

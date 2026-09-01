@@ -54,7 +54,7 @@ jobs:
           [[ "$UPSTREAM_REF" =~ ^[0-9a-f]{40}$ ]] || exit 2
           [[ "$IMPORT_PATH" == "upstream" ]] || exit 2
 
-          SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"
+          readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"
           existing_sync_branch=0
           set +e
           remote_branch="$(
