@@ -37,7 +37,9 @@ def validate(policy: dict) -> None:
     }
     if set(policy) != expected_top:
         fail("top-level fields drifted")
-    if policy["schemaVersion"] != 1 or policy["status"] != "PREPARED_DISABLED":
+    if type(policy["schemaVersion"]) is not int or policy["schemaVersion"] != 1:
+        fail("schema version must be integer 1")
+    if policy["status"] != "PREPARED_DISABLED":
         fail("source authority must remain prepared and disabled")
     if policy["runtimeApplyAuthorized"] is not False:
         fail("runtime apply must not be authorized by source")
