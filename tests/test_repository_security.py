@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -42,7 +43,17 @@ class RepositorySecurityTests(unittest.TestCase):
 
     def test_workflow_actions_are_immutable(self) -> None:
         validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
-        VALIDATOR.validate_workflow_pins(self.sync_source + "\n" + validate_source)
+        combined = self.sync_source + "\n" + validate_source
+        VALIDATOR.validate_workflow_pins(combined)
+        mutable = self.sync_source.replace(
+            "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "actions/checkout@main",
+        )
+        with self.assertRaisesRegex(ValueError, "unapproved_or_mutable"):
+            VALIDATOR.validate_workflow_pins(mutable + "\n" + validate_source)
+        unapproved = combined + "\n      - uses: vendor/action@" + ("a" * 40) + "\n"
+        with self.assertRaisesRegex(ValueError, "unapproved_or_mutable"):
+            VALIDATOR.validate_workflow_pins(unapproved)
 
     def test_whitespace_gate_checks_the_committed_base_to_head_range(self) -> None:
         source = (ROOT / ".github/workflows/validate.yml").read_text()
@@ -58,6 +69,58 @@ class RepositorySecurityTests(unittest.TestCase):
             "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
             self.sync_source,
         )
+
+    def test_existing_sync_branch_is_reused_without_a_sibling_commit(self) -> None:
+        branch_lookup = self.sync_source.index("git ls-remote --exit-code --heads")
+        branch_switch = self.sync_source.index(
+            'git switch --create "$SYNC_BRANCH" --track'
+        )
+        lock_read = self.sync_source.index(
+            "lock_path = Path('CODESTRA_UPSTREAM_LOCK.json')"
+        )
+        commit = self.sync_source.index("git commit -m")
+        pr_lookup = self.sync_source.index("gh pr list", commit)
+        self.assertLess(branch_lookup, branch_switch)
+        self.assertLess(branch_switch, lock_read)
+        self.assertLess(lock_read, commit)
+        self.assertLess(commit, pr_lookup)
+        self.assertIn(
+            '[[ "$(git show -s --format=%P "refs/remotes/origin/${SYNC_BRANCH}")" == "$GITHUB_SHA" ]]',
+            self.sync_source,
+        )
+        self.assertIn(
+            "Existing sync branch differs from deterministic rebuild.",
+            self.sync_source,
+        )
+
+    def test_secret_scan_includes_imported_test_directories(self) -> None:
+        scanner = ROOT / "scripts/reject_repository_secrets.sh"
+        source = scanner.read_text()
+        VALIDATOR.validate_secret_scanner(source)
+        self.assertNotIn("--exclude-dir=tests", source)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            clean = root / "clean.txt"
+            clean.write_text("no credential material\n")
+            result = subprocess.run(
+                [scanner, root], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 0)
+            imported = root / "upstream/tests/credentials.json"
+            imported.parent.mkdir(parents=True)
+            imported.write_text(
+                '{"'
+                + "Author"
+                + "ization"
+                + '":"'
+                + "Bearer "
+                + ("A" * 32)
+                + '"}\n'
+            )
+            result = subprocess.run(
+                [scanner, root], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 1)
 
     def test_generated_sync_pr_explicitly_dispatches_validation(self) -> None:
         self.assertEqual(
