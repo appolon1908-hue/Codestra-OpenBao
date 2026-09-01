@@ -56,12 +56,13 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
                 policy[section][field] = malformed_value
                 self.reject(policy)
 
-    def test_workflow_scans_every_pr_and_checks_committed_diff(self) -> None:
+    def test_workflow_has_trusted_and_candidate_validation_boundaries(self) -> None:
         workflow = (
             ROOT / ".github" / "workflows" / "workload-secret-authority.yml"
         ).read_text(encoding="utf-8")
         trigger = workflow.split("permissions:", maxsplit=1)[0]
         assert "pull_request: {}" in trigger
+        assert "pull_request_target:" in trigger
         assert "paths:" not in trigger
         assert "fetch-depth: 0" in workflow
         assert "gitleaks dir" not in workflow
@@ -70,16 +71,26 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
             '--log-opts="${scan_base}..${OPENBAO_SOURCE_SHA} '
             '--diff-merges=first-parent"' in workflow
         )
-        assert 'test -d "$PWD/.git"' in workflow
-        assert 'git rev-list --count "${scan_base}..${OPENBAO_SOURCE_SHA}"' in workflow
-        assert 'git diff --check "$base_sha" "$OPENBAO_SOURCE_SHA"' in workflow
-        security_job = workflow.index("  source-security:")
-        validation_job = workflow.index("  workload-secret-authority:")
+        assert 'test -d "$PWD/candidate/.git"' in workflow
+        assert 'git -C candidate rev-list --count' in workflow
+        assert 'git -C candidate diff --check' in workflow
+        security_job = workflow.index("  trusted-source-security:")
+        candidate_security_job = workflow.index("  candidate-source-security:")
+        validation_job = workflow.index("  candidate-validation:")
         scanner = workflow.index("Reject secrets across exact commit range")
         validator = workflow.index("Validate authority and mutation coverage")
-        assert security_job < scanner < validation_job < validator
-        assert "needs: source-security" in workflow[validation_job:validator]
-        assert "setup-python" not in workflow[security_job:validation_job]
+        assert security_job < scanner < candidate_security_job < validation_job < validator
+        trusted = workflow[security_job:candidate_security_job]
+        candidate = workflow[validation_job:]
+        assert "if: github.event_name != 'pull_request'" in trusted
+        assert "if: github.event_name == 'pull_request'" in candidate
+        assert "Check out untrusted candidate as data" in trusted
+        assert "Check out trusted validator" in trusted
+        assert "Validate candidate policy with trusted base code" in trusted
+        assert "python3 trusted/scripts/validate_workload_secret_authority.py" in trusted
+        assert "python3 candidate/" not in trusted
+        assert "needs: candidate-source-security" in candidate
+        assert "python3 scripts/validate_workload_secret_authority.py" in candidate
 
     def test_cross_environment_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)

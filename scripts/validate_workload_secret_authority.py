@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from pathlib import Path
@@ -170,9 +171,9 @@ def validate(policy: dict) -> None:
         fail("required evidence drift")
 
 
-def main() -> int:
+def main(policy_path: Path = POLICY) -> int:
     try:
-        policy = json.loads(POLICY.read_text(encoding="utf-8"))
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         fail(str(exc))
     validate(policy)
@@ -183,4 +184,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--policy", type=Path, default=POLICY)
+    arguments = parser.parse_args()
+    raise SystemExit(main(arguments.policy))
