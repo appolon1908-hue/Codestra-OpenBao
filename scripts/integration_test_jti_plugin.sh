@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+report_failure() {
+  local status="$?"
+  printf 'JTI integration failed at script line %s (exit %s)\n' \
+    "${BASH_LINENO[0]}" "$status" >&2
+  exit "$status"
+}
+trap report_failure ERR
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 for command in curl docker go jq sha256sum shred; do command -v "$command" >/dev/null; done
@@ -140,7 +148,7 @@ workload_token="$(jq -r .auth.client_token "$response_dir/valid.json")"
 
 authorized_get() {
   local path="$1" response="$2"
-  curl --path-as-is -sS -o "$response" -w '%{http_code}' \
+  curl --path-as-is -sS -D "${response%.json}.headers" -o "$response" -w '%{http_code}' \
     -H "${header_name}: ${workload_token}" "$base/$path"
 }
 
@@ -157,11 +165,25 @@ for denial in \
   name="${denial%%:*}"
   path="${denial#*:}"
   code="$(authorized_get "$path" "$response_dir/denied-${name}.json")"
-  [[ "$code" == 403 ]]
+  if [[ "$name" == path-traversal ]]; then
+    location="$(awk 'tolower($1) == "location:" {print $2}' \
+      "$response_dir/denied-${name}.headers" | tr -d '\r')"
+    [[ "$code" == 307 ]]
+    [[ "$location" == /v1/codestra/data/staging/middleware/worker/email/probe ]]
+    code="$(authorized_get codestra/data/staging/middleware/worker/email/probe \
+      "$response_dir/denied-path-traversal-target.json")"
+    [[ "$code" == 403 ]]
+  elif [[ "$code" != 403 ]]; then
+    printf 'denial probe %s expected HTTP 403, received %s\n' "$name" "$code" >&2
+    exit 1
+  fi
 done
 code="$(curl --path-as-is -sS -o "$response_dir/denied-anonymous.json" -w '%{http_code}' \
   "$base/codestra/data/staging/middleware/api/probe")"
-[[ "$code" == 403 ]]
+if [[ "$code" != 403 ]]; then
+  printf 'anonymous denial expected HTTP 403, received %s\n' "$code" >&2
+  exit 1
+fi
 code="$(login valid "$response_dir/replay.json")"
 [[ "$code" != 200 ]]
 jq -e '.errors == ["JWT replay rejected"]' "$response_dir/replay.json" >/dev/null

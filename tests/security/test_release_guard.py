@@ -38,7 +38,9 @@ class ReleaseGuardTests(unittest.TestCase):
         source = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         for required in (
             "openbao-release", "verify_environment_approval.sh",
-            "immutable-releases", "gh release create", "--target",
+            "immutable-releases", "gh release create", "--target", "--draft",
+            "gh release upload", "--method PATCH", "-F draft=false",
+            '.draft == true', 'all(startswith(\"sha256:\"))',
             ".immutable == true", "OPENBAO_IMMUTABLE_GITHUB_RELEASE=PASS",
         ):
             self.assertIn(required, source)

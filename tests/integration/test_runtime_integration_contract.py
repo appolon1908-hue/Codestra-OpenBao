@@ -24,6 +24,8 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "SYSTEM_ADMIN_ACCESS=DENIED",
             "PATH_TRAVERSAL_ACCESS=DENIED",
             "ROOT_TOKEN_USAGE_DETECTION=PASS",
+            "/v1/codestra/data/staging/middleware/worker/email/probe",
+            '[[ "$code" == 307 ]]',
         ):
             self.assertIn(marker, replay)
         for negative in (

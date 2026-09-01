@@ -111,16 +111,18 @@ No runtime authorization was enabled during reconciliation.
   third-party action. Full-length commit-SHA pinning is enforced at repository
   level. The settings were applied and read back through the repository API on
   2026-09-01.
-- Default workflow permissions are read-only and workflows cannot approve pull
-  requests; individual legacy workflows still require permission review.
+- Every workflow permission block was reviewed. Default workflow permissions
+  are read-only and workflows cannot approve pull requests; writes exist only
+  in protected release/deployment paths and isolated upstream synchronization.
 - The protected branches do not yet contain remediation-source CODEOWNERS and
   workflows; those files take effect there only through the required promotion
   PRs. Protection itself is already active and will not be bypassed.
 - Action dependencies are repository-wide enforced as immutable SHAs.
 - Repository-level immutable releases are enabled and were read back through
   the repository API on 2026-09-01. No release tag exists yet; the protected
-  production workflow will publish and read back the signed release only after
-  every certification gate passes.
+  production workflow will create a draft, attach and digest-check every asset,
+  publish it, and read back the immutable signed release only after every
+  certification gate passes.
 - Current documentation describes source-prepared, non-deployed behavior and
   cannot serve as production certification.
 

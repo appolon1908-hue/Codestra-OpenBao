@@ -131,17 +131,30 @@ jobs:
             exit 2
           fi
           gh release create "$RELEASE_ID" \
+            --repo "$GITHUB_REPOSITORY" --target "$EXPECTED_SOURCE_SHA" --draft \
+            --title "$RELEASE_ID" \
+            --notes "Immutable Codestra OpenBao release from production source ${EXPECTED_SOURCE_SHA}. Provider business effects remain disabled."
+          gh release upload "$RELEASE_ID" \
             "$release_dir/${RELEASE_ID}.tar.gz" \
             "$release_dir/${RELEASE_ID}.tar.gz.sha256" \
             "$release_dir/${RELEASE_ID}.sigstore.json" \
-            --repo "$GITHUB_REPOSITORY" --target "$EXPECTED_SOURCE_SHA" \
-            --title "$RELEASE_ID" \
-            --notes "Immutable Codestra OpenBao release from production source ${EXPECTED_SOURCE_SHA}. Provider business effects remain disabled."
+            --repo "$GITHUB_REPOSITORY"
+          draft_release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_ID}")"
+          jq -e --arg tag "$RELEASE_ID" '
+            .tag_name == $tag and .draft == true and .immutable == false and
+            ([.assets[].name] | sort) == ([$tag + ".sigstore.json", $tag + ".tar.gz", $tag + ".tar.gz.sha256"] | sort) and
+            ([.assets[].digest] | all(startswith("sha256:")))
+          ' <<<"$draft_release" >/dev/null
+          draft_release_id="$(jq -r .id <<<"$draft_release")"
+          [[ "$draft_release_id" =~ ^[0-9]+$ ]]
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_release_id}" \
+            -F draft=false >/dev/null
           [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_ID}" --jq .object.sha)" == "$EXPECTED_SOURCE_SHA" ]]
           release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_ID}")"
           jq -e --arg tag "$RELEASE_ID" '
             .tag_name == $tag and .draft == false and .prerelease == false and
             .immutable == true and
-            ([.assets[].name] | sort) == ([$tag + ".sigstore.json", $tag + ".tar.gz", $tag + ".tar.gz.sha256"] | sort)
+            ([.assets[].name] | sort) == ([$tag + ".sigstore.json", $tag + ".tar.gz", $tag + ".tar.gz.sha256"] | sort) and
+            ([.assets[].digest] | all(startswith("sha256:")))
           ' <<<"$release" >/dev/null
           echo 'OPENBAO_IMMUTABLE_GITHUB_RELEASE=PASS'
