@@ -66,10 +66,20 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         assert "fetch-depth: 0" in workflow
         assert "gitleaks dir" not in workflow
         assert "git --redact --no-banner" in workflow
-        assert '--log-opts="${scan_base}..${OPENBAO_SOURCE_SHA}"' in workflow
+        assert (
+            '--log-opts="${scan_base}..${OPENBAO_SOURCE_SHA} '
+            '--diff-merges=first-parent"' in workflow
+        )
         assert 'test -d "$PWD/.git"' in workflow
         assert 'git rev-list --count "${scan_base}..${OPENBAO_SOURCE_SHA}"' in workflow
         assert 'git diff --check "$base_sha" "$OPENBAO_SOURCE_SHA"' in workflow
+        security_job = workflow.index("  source-security:")
+        validation_job = workflow.index("  workload-secret-authority:")
+        scanner = workflow.index("Reject secrets across exact commit range")
+        validator = workflow.index("Validate authority and mutation coverage")
+        assert security_job < scanner < validation_job < validator
+        assert "needs: source-security" in workflow[validation_job:validator]
+        assert "setup-python" not in workflow[security_job:validation_job]
 
     def test_cross_environment_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)
