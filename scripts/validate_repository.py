@@ -195,6 +195,8 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "original_block_sha256",
         "PRIVATE_KEY_TEST_FIXTURE_REMOVED",
         "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
+        "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID",
+        "b\\.[A-Za-z0-9_-]{64,}",
         "(?:AKIA|ASIA)[0-9A-Z]{12,}",
         "github_pat_[A-Za-z0-9_]{20,}",
         "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
@@ -314,6 +316,7 @@ def validate_secret_scanner(source: str) -> None:
         "secret_scan_status=$?",
         'exit "$secret_scan_status"',
         "(AKIA|ASIA)[0-9A-Z]{12,}",
+        "b\\.[A-Za-z0-9_-]{64,}",
         "github_pat_[A-Za-z0-9_]{20,}",
     )
     for token in required:

@@ -223,6 +223,7 @@ class RepositorySecurityTests(unittest.TestCase):
             "pgp-key.txt": "-----BEGIN PGP PRIVATE" + " KEY BLOCK-----\n",
             "openbao-token.txt": "hv" + "s." + ("A" * 16),
             "legacy-openbao-token.txt": "s." + ("B" * 24),
+            "batch-openbao-token.txt": "b." + ("C" * 96),
         }
         for name, contents in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
@@ -238,11 +239,29 @@ class RepositorySecurityTests(unittest.TestCase):
         scanner = ROOT / "scripts/reject_repository_secrets.sh"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "policy.txt"
-            path.write_text("claims.codestra_environment == 'staging'\n")
+            path.write_text(
+                "claims.codestra_environment == 'staging'\n"
+                + "blob."
+                + ("A" * 96)
+                + "\n"
+            )
             result = subprocess.run(
                 [scanner, directory], check=False, capture_output=True, text=True
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_upstream_sync_sanitizes_legacy_batch_token_fixtures(self) -> None:
+        pattern = r"(?<![A-Za-z0-9])b\.[A-Za-z0-9_-]{64,}"
+        self.assertIn(
+            "(r'(?<![A-Za-z0-9])b\\.[A-Za-z0-9_-]{64,}', "
+            "'OPENBAO_BATCH_TOKEN_FIXTURE_INVALID', 0)",
+            self.sync_source,
+        )
+        fixture = "b." + ("A" * 96)
+        self.assertEqual(
+            re.sub(pattern, "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID", fixture),
+            "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID",
+        )
 
     def test_client_secret_fixture_sanitization_preserves_supported_syntax(self) -> None:
         heredoc = self.sync_source.rsplit("python3 - <<'PY'\n", 1)[1].split(
