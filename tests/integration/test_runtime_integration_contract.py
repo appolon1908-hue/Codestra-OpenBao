@@ -17,6 +17,13 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "JWT_CONCURRENT_SUCCESS_COUNT=",
             "JWT_CONCURRENT_DENY_COUNT=",
             "JWT_NEGATIVE_SECURITY=PASS",
+            "WORKLOAD_AUTHORIZED_PATH=PASS",
+            "CROSS_SERVICE_ACCESS=DENIED",
+            "CROSS_ENVIRONMENT_ACCESS=DENIED",
+            "ANONYMOUS_ACCESS=DENIED",
+            "SYSTEM_ADMIN_ACCESS=DENIED",
+            "PATH_TRAVERSAL_ACCESS=DENIED",
+            "ROOT_TOKEN_USAGE_DETECTION=PASS",
         ):
             self.assertIn(marker, replay)
         for negative in (

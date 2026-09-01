@@ -97,6 +97,12 @@ code="$(curl -sS -o "$response_dir/role-response.json" -w '%{http_code}' \
 policy_path="$(jq -r --arg policy "$policy" '.policies[] | select(.policyName == $policy) | .path' config/policies/generated-policy-index.v1.json)"
 docker cp "$policy_path" "$container:/tmp/policy.hcl" >/dev/null
 bao_exec policy write "$policy" /tmp/policy.hcl >/dev/null
+bao_exec audit enable -path=integration-audit file \
+  file_path=/tmp/openbao-integration-audit.jsonl log_raw=false >/dev/null
+bao_exec secrets enable -path=codestra -version=2 kv >/dev/null
+bao_exec kv put codestra/staging/middleware/api/probe payload=synthetic-middleware-api >/dev/null
+bao_exec kv put codestra/staging/middleware/worker/email/probe payload=synthetic-cross-service >/dev/null
+bao_exec kv put codestra/production/middleware/api/probe payload=synthetic-cross-environment >/dev/null
 
 login() {
   local token_name="$1" response="$2" payload="$response_dir/login-payload.json"
@@ -113,6 +119,33 @@ jq -e --arg policy "$policy" '
   .auth.lease_duration == 300 and .auth.renewable == true and
   (.auth.policies | index($policy) != null)
 ' "$response_dir/valid.json" >/dev/null
+workload_token="$(jq -r .auth.client_token "$response_dir/valid.json")"
+[[ -n "$workload_token" && "$workload_token" != null ]]
+
+authorized_get() {
+  local path="$1" response="$2"
+  curl --path-as-is -sS -o "$response" -w '%{http_code}' \
+    -H "${header_name}: ${workload_token}" "$base/$path"
+}
+
+code="$(authorized_get codestra/data/staging/middleware/api/probe "$response_dir/authorized-secret.json")"
+[[ "$code" == 200 ]]
+jq -e '.data.data.payload == "synthetic-middleware-api"' \
+  "$response_dir/authorized-secret.json" >/dev/null
+
+for denial in \
+  'cross-service:codestra/data/staging/middleware/worker/email/probe' \
+  'cross-environment:codestra/data/production/middleware/api/probe' \
+  'system-admin:sys/auth' \
+  'path-traversal:codestra/data/staging/middleware/api/../worker/email/probe'; do
+  name="${denial%%:*}"
+  path="${denial#*:}"
+  code="$(authorized_get "$path" "$response_dir/denied-${name}.json")"
+  [[ "$code" == 403 ]]
+done
+code="$(curl --path-as-is -sS -o "$response_dir/denied-anonymous.json" -w '%{http_code}' \
+  "$base/codestra/data/staging/middleware/api/probe")"
+[[ "$code" == 403 ]]
 code="$(login valid "$response_dir/replay.json")"
 [[ "$code" != 200 ]]
 jq -e '.errors == ["JWT replay rejected"]' "$response_dir/replay.json" >/dev/null
@@ -140,9 +173,23 @@ code="$(curl -sS -o "$response_dir/concurrent-final.json" -w '%{http_code}' \
 [[ "$code" != 200 ]]
 jq -e '.errors == ["JWT replay rejected"]' "$response_dir/concurrent-final.json" >/dev/null
 
+docker cp "$container:/tmp/openbao-integration-audit.jsonl" \
+  "$response_dir/openbao-integration-audit.jsonl" >/dev/null
+jq -s -e '
+  any(.[]; .type == "request" and .auth.display_name == "root") and
+  ([.[] | select(.type == "response" and ((.error // "") | length > 0))] | length >= 5)
+' "$response_dir/openbao-integration-audit.jsonl" >/dev/null
+
 echo 'OPENBAO_JTI_PLUGIN_INTEGRATION=PASS'
 echo 'JWT_TOKEN_TTL=300'
 echo 'JWT_SEQUENTIAL_REPLAY=DENIED'
 echo 'JWT_CONCURRENT_SUCCESS_COUNT=1'
 echo 'JWT_CONCURRENT_DENY_COUNT=15'
 echo 'JWT_NEGATIVE_SECURITY=PASS'
+echo 'WORKLOAD_AUTHORIZED_PATH=PASS'
+echo 'CROSS_SERVICE_ACCESS=DENIED'
+echo 'CROSS_ENVIRONMENT_ACCESS=DENIED'
+echo 'ANONYMOUS_ACCESS=DENIED'
+echo 'SYSTEM_ADMIN_ACCESS=DENIED'
+echo 'PATH_TRAVERSAL_ACCESS=DENIED'
+echo 'ROOT_TOKEN_USAGE_DETECTION=PASS'

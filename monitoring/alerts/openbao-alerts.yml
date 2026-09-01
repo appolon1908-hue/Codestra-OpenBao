@@ -17,6 +17,14 @@ groups:
         annotations:
           summary: OpenBao is sealed
 
+      - alert: OpenBaoNotInitialized
+        expr: codestra_openbao_initialized != 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: OpenBao is not initialized or initialization state is ambiguous
+
       - alert: OpenBaoNoActiveLeader
         expr: max(vault_core_active{job="codestra-openbao"}) != 1
         for: 2m
@@ -57,6 +65,22 @@ groups:
         annotations:
           summary: OpenBao leadership changed
 
+      - alert: OpenBaoRaftQuorumBelowDesired
+        expr: codestra_openbao_raft_voting_peers < codestra_openbao_raft_desired_voting_peers
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: OpenBao Raft voting peers are below the protected desired topology
+
+      - alert: OpenBaoExcessiveTokenCreation
+        expr: sum(rate(vault_token_creation{job="codestra-openbao"}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: OpenBao token creation rate exceeds the reviewed threshold
+
       - alert: OpenBaoIrrevocableLeases
         expr: vault_expire_num_irrevocable_leases{job="codestra-openbao"} > 0
         for: 10m
@@ -96,6 +120,22 @@ groups:
           severity: critical
         annotations:
           summary: OpenBao lease or identity revocation failed
+
+      - alert: OpenBaoCredentialNearExpiry
+        expr: codestra_openbao_credential_expiry_unixtime - time() < 604800
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: A sanitized credential-family expiry record is within seven days
+
+      - alert: OpenBaoRestartLoop
+        expr: increase(codestra_openbao_container_restarts_total[15m]) > 2
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: OpenBao restarted more than twice in fifteen minutes
 
       - alert: OpenBaoFilesystemCapacityLow
         expr: codestra_openbao_filesystem_free_bytes / codestra_openbao_filesystem_size_bytes < 0.20

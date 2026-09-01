@@ -27,15 +27,54 @@ class MonitoringContractTests(unittest.TestCase):
             "OpenBaoSealed", "OpenBaoNoActiveLeader", "OpenBaoAuditRequestFailure",
             "OpenBaoAuthFailureSurge", "OpenBaoBackupStale", "OpenBaoBackupFailure",
             "OpenBaoRotationFailure", "OpenBaoRevocationFailure", "OpenBaoDriftDetected",
+            "OpenBaoNotInitialized", "OpenBaoRaftQuorumBelowDesired",
+            "OpenBaoExcessiveTokenCreation", "OpenBaoCredentialNearExpiry",
+            "OpenBaoRestartLoop",
         } <= names)
-        for forbidden in ("secret_value", "client_secret", "root_token", "unseal_key"):
+        for forbidden in ("secret_value", "client_secret", "unseal_key"):
             self.assertNotIn(forbidden, source.lower())
+
+        audit_source = (
+            ROOT / "monitoring/alerts/openbao-audit-loki-rules.yml"
+        ).read_text()
+        audit_rules = yaml.safe_load(audit_source)["groups"][0]["rules"]
+        audit_names = {item["alert"] for item in audit_rules}
+        self.assertTrue({
+            "OpenBaoAuditStreamSilent", "OpenBaoRootTokenUsage",
+            "OpenBaoPermissionDenialSurge", "OpenBaoPolicyModified",
+            "OpenBaoControlPlaneConfigurationModified",
+            "OpenBaoInitializationFailure", "OpenBaoAuthenticationFailureSurge",
+        } <= audit_names)
+        self.assertIn('| json | __error__=""', audit_source)
+        for forbidden in ("secret_value", "client_secret", "unseal_key"):
+            self.assertNotIn(forbidden, audit_source.lower())
 
     def test_dashboard_is_read_only_and_source_backed(self) -> None:
         dashboard = json.loads((ROOT / "monitoring/dashboards/codestra-openbao.json").read_text())
         self.assertFalse(dashboard["editable"])
-        self.assertGreaterEqual(len(dashboard["panels"]), 8)
+        self.assertGreaterEqual(len(dashboard["panels"]), 18)
+        titles = {panel["title"] for panel in dashboard["panels"]}
+        self.assertTrue({
+            "Initialized state", "Unsealed nodes", "Active leaders", "Standby nodes",
+            "Raft voting peers", "Request rate", "Request latency", "Current tokens",
+            "Current leases", "Lease expiration and revocation", "Raft storage activity",
+            "Process memory and CPU", "Filesystem capacity", "Container restarts",
+        } <= titles)
         self.assertEqual(dashboard["uid"], "codestra-openbao-v1")
+
+    def test_runtime_exporter_contains_only_sanitized_state(self) -> None:
+        source = (ROOT / "scripts/export_runtime_metrics.sh").read_text()
+        for metric in (
+            "codestra_openbao_initialized", "codestra_openbao_sealed",
+            "codestra_openbao_raft_voting_peers",
+            "codestra_openbao_raft_desired_voting_peers",
+            "codestra_openbao_container_restarts_total",
+            "codestra_openbao_filesystem_free_bytes",
+            "codestra_openbao_filesystem_size_bytes",
+        ):
+            self.assertIn(metric, source)
+        for forbidden in ("secret_value", "client_secret", "unseal_key", "BAO_TOKEN"):
+            self.assertNotIn(forbidden, source)
 
 
 if __name__ == "__main__":

@@ -77,6 +77,14 @@ quorum and recovery custody. Restart one voter at a time. Confirm leader,
 peers, unsealed state, audit, metrics and workload renewals before proceeding.
 Dynamic consumers must revoke child leases on shutdown.
 
+The Prometheus rules cover sealed/uninitialized state, leader and Raft quorum,
+token creation, lease failures, restart loops, capacity, backup age/failure,
+credential expiry, rotation/revocation and drift. The companion Loki ruler file
+evaluates sanitized JSON audit metadata for stream silence, root-token use,
+denial/authentication surges, initialization failures and policy/control-plane
+mutations. Runtime alerting remains FAIL until both rule groups are loaded and
+firing-path tests reach the configured Alertmanager.
+
 ## Scheduled backup and certification
 
 After final promotion, `scheduled-backup.yml` runs daily at 02:17 UTC from

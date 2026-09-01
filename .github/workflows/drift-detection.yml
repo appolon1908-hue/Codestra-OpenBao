@@ -30,6 +30,9 @@ jobs:
       BAO_CLIENT_KEY: ${{ vars.OPENBAO_OBSERVER_KEY_PATH }}
       OPENBAO_OPERATOR_TOKEN_FILE: ${{ vars.OPENBAO_OBSERVER_TOKEN_FILE }}
       OPENBAO_DRIFT_METRIC_FILE: ${{ vars.OPENBAO_DRIFT_METRIC_FILE }}
+      OPENBAO_RUNTIME_METRIC_FILE: ${{ vars.OPENBAO_RUNTIME_METRIC_FILE }}
+      OPENBAO_CONTAINER_NAME: ${{ vars.OPENBAO_CONTAINER_NAME }}
+      OPENBAO_DATA_DIR: ${{ vars.OPENBAO_DATA_DIR }}
     steps:
       - name: Check out exact current environment authority
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -42,5 +45,6 @@ jobs:
             test -f "$path" && test ! -L "$path"
           done
           export BAO_TOKEN="$(< "$OPENBAO_OPERATOR_TOKEN_FILE")"
+          scripts/export_runtime_metrics.sh
           scripts/drift.sh
           unset BAO_TOKEN
