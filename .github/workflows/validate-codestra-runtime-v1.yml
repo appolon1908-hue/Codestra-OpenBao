@@ -84,7 +84,15 @@ jobs:
             done
           fi
 
-      - name: Verify OpenBao server configuration with temporary CI certificates
+      - name: Validate OpenBao server configuration with locked source
+        if: steps.source.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./.tmp-openbao operator validate-config \
+            -config=codestra/runtime-v1/openbao.hcl
+
+      - name: Smoke-test OpenBao server startup with temporary CI certificates
         if: steps.source.outputs.available == 'true'
         shell: bash
         run: |
@@ -94,14 +102,23 @@ jobs:
             -keyout "$work/server-key.pem" \
             -out "$work/server-cert.pem" \
             -days 1 -subj '/CN=codestra-openbao' >/dev/null 2>&1
-          sudo mkdir -p /run/secrets /openbao/data
+          sudo mkdir -p /run/secrets /openbao/data /openbao/plugins
           sudo cp "$work/server-key.pem" /run/secrets/openbao_server_key.pem
           sudo cp "$work/server-cert.pem" /run/secrets/openbao_server_cert.pem
           sudo cp "$work/server-cert.pem" /run/secrets/codestra_workload_ca.pem
           sudo chmod 0600 /run/secrets/openbao_server_key.pem
-          sudo ./.tmp-openbao server \
+          set +e
+          sudo timeout --signal=TERM --kill-after=2s 8s \
+            ./.tmp-openbao server \
             -config=codestra/runtime-v1/openbao.hcl \
-            -verify-only
+            >"$work/server.log" 2>&1
+          server_status=$?
+          set -e
+          if [[ "$server_status" != 124 && "$server_status" != 143 ]]; then
+            sed -n '1,80p' "$work/server.log" >&2
+            exit "$server_status"
+          fi
+          grep -q 'OpenBao server started' "$work/server.log"
 
       - name: Install pinned YAML parser
         run: python -m pip install --disable-pip-version-check PyYAML==6.0.2
