@@ -38,6 +38,28 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         role["pathPrefixes"] = ["codestra/production/middleware/"]
         self.reject(policy)
 
+    def test_environment_claim_drift_is_rejected(self) -> None:
+        policy = copy.deepcopy(self.policy)
+        role = next(item for item in policy["roles"] if item["environment"] == "staging")
+        role["boundClaims"]["codestra_environment"] = "production"
+        self.reject(policy)
+
+    def test_environment_root_path_is_rejected(self) -> None:
+        policy = copy.deepcopy(self.policy)
+        role = next(item for item in policy["roles"] if item["environment"] == "production")
+        role["pathPrefixes"] = ["codestra/production/"]
+        self.reject(policy)
+
+    def test_cross_service_path_is_rejected(self) -> None:
+        policy = copy.deepcopy(self.policy)
+        role = next(
+            item for item in policy["roles"]
+            if item["serviceIdentity"] == "kong-gateway"
+            and item["environment"] == "production"
+        )
+        role["pathPrefixes"] = ["codestra/production/middleware/api/"]
+        self.reject(policy)
+
     def test_wildcard_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)
         policy["roles"][0]["pathPrefixes"] = ["codestra/production/*/"]
