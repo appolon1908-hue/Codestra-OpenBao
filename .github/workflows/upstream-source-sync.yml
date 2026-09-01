@@ -168,7 +168,7 @@ jobs:
               (r'xapp-[A-Za-z0-9-]{12,}', 'SLACK_APP_TOKEN_FIXTURE_INVALID', 0),
               # Private-key blocks are only neutralized in fixture/docs paths.
               (r'-----BEGIN [^-\n]*PRIVATE KEY-----.*?-----END [^-\n]*PRIVATE KEY-----', 'PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
-              (r'-----BEGIN PGP PRIVATE KEY BLOCK-----.*?-----END PGP PRIVATE KEY BLOCK-----', 'PGP_PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
+              (r'-----BEGIN PGP PRIVATE' + r' KEY BLOCK-----.*?-----END PGP PRIVATE' + r' KEY BLOCK-----', 'PGP_PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
           ]
 
           for p in Path('upstream').rglob('*'):

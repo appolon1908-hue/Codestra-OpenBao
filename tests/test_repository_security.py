@@ -122,6 +122,42 @@ class RepositorySecurityTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 1)
 
+            imported.unlink()
+            credential_shapes = (
+                "gh" + "p_" + ("A" * 24),
+                "AK" + "IA" + ("B" * 16),
+                "hv" + "s." + ("C" * 16),
+                "s." + ("D" * 24),
+                "S" + "K" + ("a" * 32),
+                "xo" + "xb-" + ("E" * 20),
+                "xa" + "pp-" + ("F" * 20),
+            )
+            for credential in credential_shapes:
+                imported.write_text(credential + "\n")
+                result = subprocess.run(
+                    [scanner, root], check=False, capture_output=True, text=True
+                )
+                self.assertEqual(result.returncode, 1, credential[:4])
+                imported.unlink()
+
+            for label in ("ENCRYPTED", "DSA"):
+                imported.write_text(
+                    "-----BEGIN " + label + " PRIVATE" + " KEY-----\nfixture\n"
+                )
+                result = subprocess.run(
+                    [scanner, root], check=False, capture_output=True, text=True
+                )
+                self.assertEqual(result.returncode, 1, label)
+                imported.unlink()
+
+            imported.write_text(
+                "-----BEGIN PGP PRIVATE" + " KEY BLOCK-----\nfixture\n"
+            )
+            result = subprocess.run(
+                [scanner, root], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 1, "PGP")
+
     def test_generated_sync_pr_explicitly_dispatches_validation(self) -> None:
         self.assertEqual(
             self.sync_document["permissions"],
