@@ -163,20 +163,34 @@ jobs:
                   p.write_text('OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n')
                   record('replace known upstream private-key test fixture blocked by GitHub push protection',p,1)
 
+          lock_path = Path('CODESTRA_UPSTREAM_LOCK.json')
+          previous_lock = {}
+          if lock_path.is_file():
+              try:
+                  previous_lock = json.loads(lock_path.read_text())
+              except (OSError, ValueError):
+                  previous_lock = {}
+          synchronized_at = datetime.now(timezone.utc).isoformat()
+          if (
+              previous_lock.get('upstream_ref') == os.environ['UPSTREAM_REF']
+              and previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']
+          ):
+              synchronized_at = previous_lock.get('synchronized_at', synchronized_at)
+
           lock = {
               'schema_version': '1.0',
               'upstream_clone_url': os.environ['UPSTREAM_URL'],
               'upstream_ref': os.environ['UPSTREAM_REF'],
               'upstream_commit': os.environ['UPSTREAM_SHA'],
               'import_path': 'upstream',
-              'synchronized_at': datetime.now(timezone.utc).isoformat(),
+              'synchronized_at': synchronized_at,
               'deployment_enabled': False,
               'secret_material_allowed_in_git': False,
               'sanitization_scope': 'upstream test/example/documentation fixtures only; production/runtime logic is not intentionally modified',
           }
           if sanitizations:
               lock['sanitizations']=sanitizations
-          Path('CODESTRA_UPSTREAM_LOCK.json').write_text(json.dumps(lock, indent=2) + '\n')
+          lock_path.write_text(json.dumps(lock, indent=2) + '\n')
           PY
 
           git config user.name 'codestra-upstream-sync'
