@@ -28,6 +28,27 @@ def fail(message: str) -> None:
     raise SystemExit(f"OPENBAO_SOURCE_AUTHORITY=FAIL: {message}")
 
 
+def exactly_matches(actual: object, expected: object) -> bool:
+    """Compare JSON values without Python's bool/int/float coercion."""
+    if type(actual) is not type(expected):
+        return False
+    if type(expected) is dict:
+        expected_mapping = expected
+        actual_mapping = actual
+        return set(actual_mapping) == set(expected_mapping) and all(
+            exactly_matches(actual_mapping[key], expected_mapping[key])
+            for key in expected_mapping
+        )
+    if type(expected) is list:
+        expected_items = expected
+        actual_items = actual
+        return len(actual_items) == len(expected_items) and all(
+            exactly_matches(actual_item, expected_item)
+            for actual_item, expected_item in zip(actual_items, expected_items)
+        )
+    return actual == expected
+
+
 def validate(policy: dict) -> None:
     expected_top = {
         "schemaVersion", "status", "runtimeApplyAuthorized", "issuer",
@@ -58,7 +79,7 @@ def validate(policy: dict) -> None:
         fail("default policy must deny")
 
     injection = policy["secretInjection"]
-    if injection != {
+    if not exactly_matches(injection, {
         "method": "agent-rendered-file",
         "environmentVariablesAllowed": False,
         "containerImageBakeAllowed": False,
@@ -69,16 +90,16 @@ def validate(policy: dict) -> None:
         "agentAuthTokenRenewalRequired": True,
         "dynamicSecretLeaseRenewalRequired": True,
         "dynamicSecretRevocationOnShutdownRequired": True,
-    }:
+    }):
         fail("secret injection must be file-based and fail closed")
     rotation = policy["rotation"]
-    if rotation != {
+    if not exactly_matches(rotation, {
         "ownerRequired": True,
         "maximumAgeDays": 90,
         "overlapRequired": True,
         "revocationTestRequired": True,
         "auditEventRequired": True,
-    }:
+    }):
         fail("rotation controls drift")
 
     roles = policy["roles"]

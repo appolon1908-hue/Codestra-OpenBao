@@ -44,6 +44,28 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
                 policy["maximumTokenLifetimeSeconds"] = malformed_lifetime
                 self.reject(policy)
 
+    def test_nested_control_types_are_exact(self) -> None:
+        mutations = (
+            ("secretInjection", "environmentVariablesAllowed", 0),
+            ("secretInjection", "agentAuthTokenRenewalRequired", 1),
+            ("rotation", "maximumAgeDays", 90.0),
+        )
+        for section, field, malformed_value in mutations:
+            with self.subTest(section=section, field=field):
+                policy = copy.deepcopy(self.policy)
+                policy[section][field] = malformed_value
+                self.reject(policy)
+
+    def test_workflow_scans_every_pr_and_checks_committed_diff(self) -> None:
+        workflow = (
+            ROOT / ".github" / "workflows" / "workload-secret-authority.yml"
+        ).read_text(encoding="utf-8")
+        trigger = workflow.split("permissions:", maxsplit=1)[0]
+        assert "pull_request: {}" in trigger
+        assert "paths:" not in trigger
+        assert "fetch-depth: 0" in workflow
+        assert 'git diff --check "$base_sha" "$OPENBAO_SOURCE_SHA"' in workflow
+
     def test_cross_environment_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)
         role = next(item for item in policy["roles"] if item["environment"] == "staging")
