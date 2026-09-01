@@ -64,6 +64,11 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         assert "pull_request: {}" in trigger
         assert "paths:" not in trigger
         assert "fetch-depth: 0" in workflow
+        assert "gitleaks dir" not in workflow
+        assert "git --redact --no-banner" in workflow
+        assert '--log-opts="${scan_base}..${OPENBAO_SOURCE_SHA}"' in workflow
+        assert 'test -d "$PWD/.git"' in workflow
+        assert 'git rev-list --count "${scan_base}..${OPENBAO_SOURCE_SHA}"' in workflow
         assert 'git diff --check "$base_sha" "$OPENBAO_SOURCE_SHA"' in workflow
 
     def test_cross_environment_path_is_rejected(self) -> None:
