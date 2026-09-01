@@ -37,6 +37,13 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         policy["schemaVersion"] = True
         self.reject(policy)
 
+    def test_non_integer_token_lifetimes_are_rejected(self) -> None:
+        for malformed_lifetime in (True, 1.5):
+            with self.subTest(malformed_lifetime=malformed_lifetime):
+                policy = copy.deepcopy(self.policy)
+                policy["maximumTokenLifetimeSeconds"] = malformed_lifetime
+                self.reject(policy)
+
     def test_cross_environment_path_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)
         role = next(item for item in policy["roles"] if item["environment"] == "staging")

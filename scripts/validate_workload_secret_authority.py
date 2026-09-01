@@ -49,7 +49,10 @@ def validate(policy: dict) -> None:
         fail("workload authentication drift")
     if policy["requiredClaims"] != ["iss", "sub", "aud", "azp", "iat", "exp", "jti"]:
         fail("required claims drift")
-    if not 1 <= policy["maximumTokenLifetimeSeconds"] <= 300:
+    if (
+        type(policy["maximumTokenLifetimeSeconds"]) is not int
+        or not 1 <= policy["maximumTokenLifetimeSeconds"] <= 300
+    ):
         fail("workload token lifetime is not short-lived")
     if policy["defaultPolicy"] != "deny":
         fail("default policy must deny")
