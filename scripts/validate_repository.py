@@ -55,6 +55,8 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "gh pr create",
         "--base main",
         "Deployment remains disabled",
+        "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
+        "synchronized_at = previous_lock.get('synchronized_at', synchronized_at)",
     )
     for token in required:
         if token not in source:

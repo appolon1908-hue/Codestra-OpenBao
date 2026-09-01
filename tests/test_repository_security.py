@@ -43,6 +43,16 @@ class RepositorySecurityTests(unittest.TestCase):
         validate_source = (ROOT / ".github/workflows/validate.yml").read_text()
         VALIDATOR.validate_workflow_pins(self.sync_source + "\n" + validate_source)
 
+    def test_exact_upstream_retry_preserves_lock_timestamp(self) -> None:
+        self.assertIn(
+            "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
+            self.sync_source,
+        )
+        self.assertIn(
+            "synchronized_at = previous_lock.get('synchronized_at', synchronized_at)",
+            self.sync_source,
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
