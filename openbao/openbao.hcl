@@ -1,32 +1,38 @@
 ui = true
-cluster_name = "codestra-openbao"
+cluster_name = "codestra-openbao-production"
 disable_clustering = false
 log_level = "info"
 log_format = "json"
-default_lease_ttl = "15m"
+default_lease_ttl = "5m"
 max_lease_ttl = "1h"
 raw_storage_endpoint = false
 
 api_addr = "https://bao.codestra.media"
-cluster_addr = "https://codestra-openbao:8201"
+cluster_addr = "https://codestra-bao-production-01:8201"
 
 storage "raft" {
   path = "/openbao/data"
-  node_id = "codestra-bao-01"
+  node_id = "codestra-bao-production-01"
   performance_multiplier = 1
 }
 
 listener "tcp" {
   address = "0.0.0.0:8200"
   cluster_address = "0.0.0.0:8201"
+
   tls_disable = 0
   tls_min_version = "tls13"
-  tls_cert_file = "/run/secrets/openbao_server_cert.pem"
-  tls_key_file = "/run/secrets/openbao_server_key.pem"
-  tls_client_ca_file = "/run/secrets/codestra_workload_ca.pem"
+  tls_cert_file = "/run/secrets/openbao-server-cert"
+  tls_key_file = "/run/secrets/openbao-server-key"
+  tls_client_ca_file = "/run/secrets/codestra-client-ca"
   tls_require_and_verify_client_cert = true
+
+  x_forwarded_for_authorized_addrs = ["172.31.40.0/24"]
   x_forwarded_for_reject_not_present = true
   x_forwarded_for_reject_not_authorized = true
+
+  disable_unauthed_rekey_endpoints = true
+  disable_unauthed_generate_root_endpoints = true
 
   telemetry {
     unauthenticated_metrics_access = false

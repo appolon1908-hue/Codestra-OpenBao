@@ -158,7 +158,7 @@ jobs:
           assert 'path "*"' not in policies
           assert "ports" not in service
           assert service["read_only"] is True
-          assert "IPC_LOCK" in service["cap_add"]
+          assert "IPC_LOCK" not in service.get("cap_add", [])
           assert "init" not in " ".join(service["command"]).lower()
           assert "latest" not in compose_text.lower()
           assert runtime["activation"] and all(value is False for value in runtime["activation"].values())

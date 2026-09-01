@@ -333,7 +333,6 @@ def validate_hcl_configs() -> None:
             'unauthenticated_metrics_access = false',
             'default_lease_ttl = "15m"',
             'max_lease_ttl = "1h"',
-            'disable_mlock = false',
             'raw_storage_endpoint = false',
         ):
             if fragment not in config:
@@ -343,7 +342,7 @@ def validate_hcl_configs() -> None:
             'tls_min_version = "tls10"',
             'tls_min_version = "tls11"',
             'tls_min_version = "tls12"',
-            "disable_mlock = true",
+            "disable_mlock",
             "unauthenticated_metrics_access = true",
             "http://",
             "token =",
