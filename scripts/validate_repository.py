@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SYNC_WORKFLOW_SHA256 = "848c5fde74fdad19cdc4f5cdf1418987e81eba7db3f24856262ec6529fc43552"
+SYNC_WORKFLOW_SHA256 = "ee9730c5327d4779e9188bc03511913fd978a872507a0b999c9265cf0a60cecb"
 UPSTREAM_PATH = ROOT / "CODESTRA_UPSTREAM.json"
 SYNC_WORKFLOW_PATH = ROOT / ".github/workflows/upstream-source-sync.yml"
 VALIDATE_WORKFLOW_PATH = ROOT / ".github/workflows/validate.yml"
@@ -119,6 +119,17 @@ def reject_protected_pushes(source: str) -> None:
                 command_index += 2 if option in {
                     "-c", "-C", "--git-dir", "--work-tree"
                 } else 1
+            if (
+                command_index < len(words)
+                and words[command_index] == "config"
+                and any(
+                    "alias." in argument.lower()
+                    or "$" in argument
+                    or "`" in argument
+                    for argument in words[command_index + 1 :]
+                )
+            ):
+                raise ValueError("protected_branch_sync_forbidden:dynamic_command")
             if command_index < len(words) and (
                 "$" in words[command_index] or "`" in words[command_index]
             ):
@@ -144,7 +155,7 @@ def reject_protected_pushes(source: str) -> None:
 def validate_sync_branch_authority(source: str) -> None:
     """Require one immutable, deterministic authority for the sync destination."""
 
-    expected = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+    expected = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}-${GITHUB_SHA}"'
     lines = _logical_shell_lines(source)
     if lines.count(expected) != 1:
         raise ValueError("sync_branch_authority_invalid")
@@ -203,7 +214,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     required = (
         "[[ \"$UPSTREAM_REF\" =~ ^[0-9a-f]{40}$ ]]",
         "[[ \"$UPSTREAM_SHA\" == \"$UPSTREAM_REF\" ]]",
-        'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
+        'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}-${GITHUB_SHA}"',
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
         'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',
@@ -220,7 +231,12 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "sanitizations.sort(key=lambda item: (item['path'], item['rule']))",
         "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
         "(?:AKIA|ASIA)[0-9A-Z]{12,}",
-        'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main',
+        'gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls"',
+        '-f base="main"',
+        '-f head="${GITHUB_REPOSITORY_OWNER}:${SYNC_BRANCH}"',
+        ".head.repo.full_name",
+        '[[ "$pr_head_sha" == "$LOCAL_SHA" ]]',
+        '[[ "$pr_repository" == "$GITHUB_REPOSITORY" ]]',
         "Multiple open pull requests claim the sync branch.",
         "github.ref == 'refs/heads/main'",
     )

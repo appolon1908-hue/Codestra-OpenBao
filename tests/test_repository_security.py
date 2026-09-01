@@ -157,6 +157,8 @@ class RepositorySecurityTests(unittest.TestCase):
             + '\n          git -c alias.x=push x origin HEAD:refs/heads/main',
             safe
             + '\n          git -calias.x=push x origin HEAD:refs/heads/main',
+            safe
+            + '\n          git config alias.x push; git x origin HEAD:refs/heads/main',
         ):
             with self.subTest(command=command):
                 unsafe = self.sync_source.replace(safe, command)
@@ -175,7 +177,7 @@ class RepositorySecurityTests(unittest.TestCase):
             VALIDATOR.validate_sync_workflow(body_only, yaml.safe_load(body_only))
 
     def test_sync_branch_destination_is_immutable_and_fully_resolved(self) -> None:
-        assignment = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+        assignment = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}-${GITHUB_SHA}"'
         self.assertIn(assignment, self.sync_source)
         reassigned = self.sync_source.replace(
             assignment, assignment + "\n          SYNC_BRANCH=main"
@@ -225,7 +227,7 @@ class RepositorySecurityTests(unittest.TestCase):
             "lock_path = Path('CODESTRA_UPSTREAM_LOCK.json')"
         )
         commit = self.sync_source.index("git commit -m")
-        pr_lookup = self.sync_source.index("gh pr list", commit)
+        pr_lookup = self.sync_source.index("gh api --method GET", commit)
         self.assertLess(branch_lookup, branch_switch)
         self.assertLess(branch_switch, lock_read)
         self.assertLess(lock_read, commit)
@@ -238,6 +240,27 @@ class RepositorySecurityTests(unittest.TestCase):
             "Existing sync branch differs from deterministic rebuild.",
             self.sync_source,
         )
+
+    def test_existing_sync_pr_identity_is_exact(self) -> None:
+        for token in (
+            'gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls"',
+            '-f base="main"',
+            '-f head="${GITHUB_REPOSITORY_OWNER}:${SYNC_BRANCH}"',
+            '.head.repo.full_name',
+            '[[ "$pr_head_sha" == "$LOCAL_SHA" ]]',
+            '[[ "$pr_repository" == "$GITHUB_REPOSITORY" ]]',
+        ):
+            self.assertIn(token, self.sync_source)
+        for token in (
+            '[[ "$pr_head_sha" == "$LOCAL_SHA" ]]',
+            '[[ "$pr_repository" == "$GITHUB_REPOSITORY" ]]',
+        ):
+            with self.subTest(token=token):
+                unsafe = self.sync_source.replace(token, "true")
+                with self.assertRaisesRegex(
+                    ValueError, "reviewed_sync_boundary_missing"
+                ):
+                    VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
 
     def test_secret_scan_includes_imported_test_directories(self) -> None:
         scanner = ROOT / "scripts/reject_repository_secrets.sh"
