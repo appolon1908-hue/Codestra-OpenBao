@@ -21,6 +21,8 @@ class ReleaseGuardTests(unittest.TestCase):
         manifest = MODULE.authority_manifest()
         for required in (
             "CODESTRA_UPSTREAM.json",
+            ".github/workflows/runtime-deploy.yml",
+            ".github/workflows/runtime-rollback.yml",
             "config/workload-secret-authority.v1.json",
             "deploy/compose/compose.yaml",
             "monitoring/alerts/openbao-alerts.yml",

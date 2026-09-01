@@ -48,6 +48,28 @@ plugin, creation of its auth mount, and creation/update of the reviewed KV v2
 engine, CEL roles, policies and file audit device. Delete, plugin-version
 overwrite, mount replacement, audit disable and initialization are unsupported.
 
+## Runtime image deployment
+
+Runtime installation is a separate protected workflow and never occurs inside
+saved-plan apply. `runtime-deploy.yml` accepts only the exact current
+environment SHA and the plugin artifact from a successful image-authority run
+whose `head_sha` matches. `scripts/deploy_runtime.sh` then:
+
+1. verifies runtime authority and the `@kazan555` environment approval;
+2. validates exact image/plugin digests, TLS file ownership and private-key
+   modes, external networks, and writable Raft/audit directory ownership;
+3. requires an immediate encrypted immutable off-host snapshot whenever state
+   exists, and always in production;
+4. renders an immutable SHA-named configuration without overwriting a previous
+   release;
+5. stops and renames the previous container instead of deleting it;
+6. starts the exact image with no build and no host port publication; and
+7. reads back labels, read-only root, port bindings and SSH state.
+
+No Raft directory, Docker volume, recovery material or prior container is
+deleted. The workflow is currently fail-closed because runtime authorization is
+false and required protected-environment review is not installed.
+
 ## Shutdown and restart
 
 Before a planned restart, verify a current off-host snapshot, healthy Raft

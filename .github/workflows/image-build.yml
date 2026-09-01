@@ -27,8 +27,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: '1.25.13'
-          cache: true
-          cache-dependency-path: upstream/go.sum
+          cache: false
       - name: Pull and verify the exact official linux/amd64 image
         run: |
           image="$(jq -r .image_reference CODESTRA_UPSTREAM.json)"
@@ -46,10 +45,18 @@ jobs:
           grep -Fq "(${expected_source})" <<<"$version"
       - name: Reproduce the exact replay-protected JWT plugin
         run: |
-          output="$RUNNER_TEMP/codestra-jwt-replay"
+          mkdir -p "$RUNNER_TEMP/openbao-runtime-plugin"
+          output="$RUNNER_TEMP/openbao-runtime-plugin/codestra-jwt-replay"
           OPENBAO_PLUGIN_OUTPUT="$output" scripts/build_jti_plugin.sh
           test "$(sha256sum "$output" | awk '{print $1}')" = \
             "$(jq -r .binarySha256 plugins/codestra-jwt-replay/plugin.v1.json)"
+      - name: Upload the exact secret-free runtime plugin
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openbao-runtime-plugin-${{ github.sha }}
+          path: ${{ runner.temp }}/openbao-runtime-plugin/
+          if-no-files-found: error
+          retention-days: 30
 
   sbom-provenance:
     name: OpenBao / sbom-provenance
@@ -64,8 +71,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: '1.25.13'
-          cache: true
-          cache-dependency-path: upstream/go.sum
+          cache: false
       - name: Install checksum-verified SBOM generator
         run: scripts/install_ci_tools.sh syft
       - name: Regenerate and verify exact package inventory

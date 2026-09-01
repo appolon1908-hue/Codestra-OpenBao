@@ -1,0 +1,129 @@
+name: OpenBao protected immutable runtime deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Exact protected environment branch to deploy
+        required: true
+        type: choice
+        options: [development, test, staging, production]
+      expected_source_sha:
+        description: Exact current environment branch SHA
+        required: true
+        type: string
+      plugin_build_run_id:
+        description: Successful exact-head image authority run ID
+        required: true
+        type: string
+      confirmation:
+        description: DEPLOY_EXACT_OPENBAO_RUNTIME_<source SHA>
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: openbao-${{ inputs.environment }}-runtime
+  cancel-in-progress: false
+
+jobs:
+  deploy-runtime:
+    name: Deploy exact immutable OpenBao runtime
+    environment: openbao-${{ inputs.environment }}-runtime
+    runs-on: [self-hosted, linux, x64, codestra-openbao]
+    timeout-minutes: 60
+    env:
+      CODESTRA_ENVIRONMENT: ${{ inputs.environment }}
+      CODESTRA_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      OPENBAO_RUNTIME_CONFIRMATION: ${{ inputs.confirmation }}
+      OPENBAO_APPROVAL_ENVIRONMENT: openbao-${{ inputs.environment }}-runtime
+      BAO_ADDR: ${{ vars.OPENBAO_ADDR }}
+      BAO_CACERT: ${{ vars.OPENBAO_CA_CERT_PATH }}
+      BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
+      BAO_CLIENT_KEY: ${{ vars.OPENBAO_OPERATOR_KEY_PATH }}
+      OPENBAO_OPERATOR_TOKEN_FILE: ${{ vars.OPENBAO_OPERATOR_TOKEN_FILE }}
+      OPENBAO_CONTAINER_NAME: ${{ vars.OPENBAO_CONTAINER_NAME }}
+      OPENBAO_RUNTIME_ROOT: ${{ vars.OPENBAO_RUNTIME_ROOT }}
+      OPENBAO_DATA_DIR: ${{ vars.OPENBAO_DATA_DIR }}
+      OPENBAO_AUDIT_DIR: ${{ vars.OPENBAO_AUDIT_DIR }}
+      OPENBAO_SERVER_CERT_FILE: ${{ vars.OPENBAO_SERVER_CERT_FILE }}
+      OPENBAO_SERVER_KEY_FILE: ${{ vars.OPENBAO_SERVER_KEY_FILE }}
+      CODESTRA_CLIENT_CA_FILE: ${{ vars.CODESTRA_CLIENT_CA_FILE }}
+      OPENBAO_HEALTH_CLIENT_CERT_FILE: ${{ vars.OPENBAO_HEALTH_CLIENT_CERT_FILE }}
+      OPENBAO_HEALTH_CLIENT_KEY_FILE: ${{ vars.OPENBAO_HEALTH_CLIENT_KEY_FILE }}
+      OPENBAO_BACKUP_ROOT: ${{ vars.OPENBAO_BACKUP_ROOT }}
+      OPENBAO_AGE_RECIPIENT_FILE: ${{ vars.OPENBAO_AGE_RECIPIENT_FILE }}
+      OPENBAO_AGE_IDENTITY_FILE: ${{ vars.OPENBAO_AGE_IDENTITY_FILE }}
+      OPENBAO_OFFHOST_REMOTE: ${{ vars.OPENBAO_OFFHOST_REMOTE }}
+      OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION: ${{ vars.OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION }}
+      OPENBAO_RUNTIME_DEPLOY_EVIDENCE: ${{ runner.temp }}/openbao-runtime-evidence/runtime-deploy.json
+      OPENBAO_PRECHANGE_BACKUP_EVIDENCE: ${{ runner.temp }}/openbao-runtime-evidence/prechange-backup.json
+    steps:
+      - name: Check out the exact protected environment source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.expected_source_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify exact branch and successful plugin build authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLUGIN_BUILD_RUN_ID: ${{ inputs.plugin_build_run_id }}
+        run: |
+          [[ "$CODESTRA_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PLUGIN_BUILD_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$(git rev-parse HEAD)" == "$CODESTRA_SOURCE_SHA" ]]
+          branch_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CODESTRA_ENVIRONMENT}" --jq .object.sha)"
+          [[ "$branch_sha" == "$CODESTRA_SOURCE_SHA" ]]
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PLUGIN_BUILD_RUN_ID}")"
+          jq -e --arg sha "$CODESTRA_SOURCE_SHA" '
+            .name == "OpenBao immutable image authority" and
+            .head_sha == $sha and .conclusion == "success"
+          ' <<<"$run" >/dev/null
+          test -z "$(git status --porcelain)"
+      - name: Download only the exact-head CI-built plugin
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: openbao-runtime-plugin-${{ inputs.expected_source_sha }}
+          path: ${{ runner.temp }}/openbao-runtime-plugin
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.plugin_build_run_id }}
+      - name: Take an immediate backup whenever state exists
+        run: |
+          umask 077
+          mkdir -p "$(dirname "$OPENBAO_RUNTIME_DEPLOY_EVIDENCE")"
+          if docker inspect "$OPENBAO_CONTAINER_NAME" >/dev/null 2>&1; then
+            set +e
+            status="$(bao status -format=json)"
+            status_code=$?
+            set -e
+            [[ "$status_code" == 0 || "$status_code" == 2 ]]
+            if [[ "$(jq -r .initialized <<<"$status")" == true ]]; then
+              export BAO_TOKEN="$(< "$OPENBAO_OPERATOR_TOKEN_FILE")"
+              export OPENBAO_BACKUP_EVIDENCE="$OPENBAO_PRECHANGE_BACKUP_EVIDENCE"
+              scripts/backup.sh
+              unset BAO_TOKEN
+            elif [[ "$CODESTRA_ENVIRONMENT" == production ]]; then
+              echo 'Production is not initialized; a required pre-change Raft backup cannot be taken.' >&2
+              exit 2
+            fi
+          elif [[ "$CODESTRA_ENVIRONMENT" == production ]]; then
+            echo 'Production has no state from which to prove the required pre-change backup.' >&2
+            exit 2
+          fi
+      - name: Deploy exact runtime and retain the previous container for rollback
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENBAO_PLUGIN_BINARY: ${{ runner.temp }}/openbao-runtime-plugin/codestra-jwt-replay
+        run: scripts/deploy_runtime.sh
+      - name: Upload sanitized deployment and SSH evidence only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openbao-runtime-${{ inputs.environment }}-${{ inputs.expected_source_sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/openbao-runtime-evidence/
+          if-no-files-found: error
+          retention-days: 90

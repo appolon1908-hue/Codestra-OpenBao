@@ -93,6 +93,7 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
 
     desired_engine = next(item for item in engines["engines"] if item["path"] == "codestra/")
     live_mount = mounts.get("codestra/") if isinstance(mounts, dict) else None
+    engine_compatible = live_mount is None
     engine_payload = {
         "path": "codestra",
         "type": "kv",
@@ -102,7 +103,24 @@ def build(environment: str, live_dir: Path, source_sha: str) -> dict:
     if live_mount is None:
         operations.append({"action": "create", "kind": "secret_engine", "name": "codestra/", "payload": engine_payload})
     elif live_mount.get("type") != "kv" or (live_mount.get("options") or {}).get("version") != "2":
+        engine_compatible = False
         warnings.append("codestra/ exists with an incompatible type or version; automatic replacement is prohibited")
+    else:
+        engine_compatible = True
+
+    live_engine_config = data(load(live_dir / "codestra-config.json", {}))
+    engine_config_payload = {
+        "max_versions": desired_engine["maxVersions"],
+        "cas_required": desired_engine["casRequired"],
+        "delete_version_after": desired_engine["deleteVersionAfter"],
+    }
+    if engine_compatible and selected(live_engine_config, tuple(engine_config_payload)) != engine_config_payload:
+        operations.append({
+            "action": "update" if live_mount is not None else "create",
+            "kind": "secret_engine_config",
+            "name": "codestra/config",
+            "payload": engine_config_payload,
+        })
 
     auth_mount = roles["mount"] + "/"
     live_auth = auths.get(auth_mount) if isinstance(auths, dict) else None

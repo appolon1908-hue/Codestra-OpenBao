@@ -83,6 +83,7 @@ jobs:
       - name: Render the exact-digest private Compose definition
         env:
           OPENBAO_NODE_ID: validation
+          OPENBAO_CONTAINER_NAME: openbao-validation
           CODESTRA_ENVIRONMENT: production
           CODESTRA_SOURCE_SHA: 0000000000000000000000000000000000000000
           OPENBAO_CONFIG_FILE: /tmp/openbao.hcl

@@ -12,10 +12,12 @@ The only valid states in this checklist are `PASS`, `WARNING`, `FAIL` and
   HIGH/CRITICAL findings under expiring VEX review.
 - PASS — replay plugin has zero HIGH/CRITICAL findings, a reproducible exact
   binary digest and isolated sequential/concurrent/negative JWT tests.
-- WARNING — remediation branch is local and not yet protected/promoted.
+- WARNING — remediation branch is pushed and exact-head CI is running; it is
+  not yet reviewed or promoted.
 - FAIL — immutable signed production release and provenance have not run.
-- FAIL — required checks/protections/environments are not yet installed on all
-  remote promotion branches.
+- WARNING — required checks and promotion-branch protections are installed;
+  environment branch restrictions exist, but `@kazan555` has not yet accepted
+  the collaborator invitation required to install approval rules.
 
 ## Staging and recovery
 

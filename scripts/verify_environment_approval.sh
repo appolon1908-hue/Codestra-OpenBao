@@ -5,10 +5,12 @@ environment="${CODESTRA_ENVIRONMENT:?set CODESTRA_ENVIRONMENT}"
 repository="${GITHUB_REPOSITORY:?must run in GitHub Actions}"
 run_id="${GITHUB_RUN_ID:?must run in GitHub Actions}"
 required_reviewer="${OPENBAO_REQUIRED_REVIEWER:-kazan555}"
-expected_environment="openbao-${environment}"
+expected_environment="${OPENBAO_APPROVAL_ENVIRONMENT:-openbao-${environment}}"
 
 [[ "$repository" == appolon1908-hue/Codestra-OpenBao ]]
 [[ "$required_reviewer" == kazan555 ]]
+[[ "$expected_environment" == "openbao-${environment}" || \
+   "$expected_environment" == "openbao-${environment}-runtime" ]]
 approvals="$(gh api "repos/${repository}/actions/runs/${run_id}/approvals")"
 jq -e \
   --arg reviewer "$required_reviewer" \

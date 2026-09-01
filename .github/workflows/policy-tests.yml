@@ -49,8 +49,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: '1.25.13'
-          cache: true
-          cache-dependency-path: upstream/go.sum
+          cache: false
       - name: Compile and read back policy and JWT CEL roles in isolated OpenBao
         run: scripts/integration_test.sh
       - name: Prove stateful JTI replay denial and negative JWT boundaries

@@ -27,6 +27,11 @@ plugin_sha="$(jq -r '.binarySha256' plugins/codestra-jwt-replay/plugin.v1.json)"
 plugin_info="$(bao plugin info -format=json -version="$plugin_version" auth "$plugin_name")"
 [[ "$(jq -r '.["codestra/"].type' <<<"$mounts")" == kv ]]
 [[ "$(jq -r '.["codestra/"].options.version' <<<"$mounts")" == 2 ]]
+kv_config="$(bao read -format=json codestra/config)"
+desired_kv="$(jq '.engines[] | select(.path == "codestra/")' config/secrets/engines.v1.json)"
+[[ "$(jq -r '.data.max_versions' <<<"$kv_config")" == "$(jq -r '.maxVersions' <<<"$desired_kv")" ]]
+[[ "$(jq -r '.data.cas_required' <<<"$kv_config")" == "$(jq -r '.casRequired' <<<"$desired_kv")" ]]
+[[ "$(jq -r '.data.delete_version_after' <<<"$kv_config")" == "$(jq -r '.deleteVersionAfter' <<<"$desired_kv")" ]]
 [[ "$(jq -r '.["jwt-codestra/"].type' <<<"$auths")" == "$plugin_name" ]]
 [[ "$(jq -r '.["jwt-codestra/"].plugin_version' <<<"$auths")" == "$plugin_version" ]]
 [[ "$(jq -r '.["jwt-codestra/"].running_plugin_version' <<<"$auths")" == "$plugin_version" ]]

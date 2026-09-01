@@ -14,12 +14,12 @@ untested control passes.
 
 ## Protected and promotion branches
 
-| Branch | Observed SHA | Ahead/behind `development` | Protection | Head signature |
+| Branch | Observed SHA | Ahead/behind `development` | Current protection | Head signature |
 | --- | --- | ---: | --- | --- |
-| `development` | `2c199ee38ce372af4e0355c83e018f417e3afc8f` | `0/0` | none | valid |
-| `test` | `6667709d257cdd97ceb22a97aeff798928c1bf28` | `2/0` | none | valid |
-| `staging` | `6e092ce5cf8e1cd76587118103653ebb7e7620b0` | `3/0` | none | valid |
-| `production` | `38ff3f3d7a2dcd9f03455415c26b2562a50adb34` | `0/68` | none | unsigned |
+| `development` | `2c199ee38ce372af4e0355c83e018f417e3afc8f` | `0/0` | protected | valid |
+| `test` | `6667709d257cdd97ceb22a97aeff798928c1bf28` | `2/0` | protected | valid |
+| `staging` | `6e092ce5cf8e1cd76587118103653ebb7e7620b0` | `3/0` | protected | valid |
+| `production` | `38ff3f3d7a2dcd9f03455415c26b2562a50adb34` | `0/68` | protected | unsigned |
 | `main` | `5f5e3583585081e450f945440a1fab503bfa8399` | `1/62` | protected | unsigned |
 
 The ahead/behind values are shown as `<branch ahead>/<branch behind>` relative
@@ -29,11 +29,12 @@ not contain the current development line. Promotion must therefore use reviewed
 pull requests and exact synthetic merge validation, not ref movement or a
 force-push.
 
-`main` currently requires one approving review, stale-review dismissal,
-approval after the last push, conversation resolution, linear history, signed
-commits, and enforcement for administrators. Force pushes and deletion are
-disabled. It does not require a CODEOWNER review or any status-check context.
-The other four promotion branches are unprotected.
+All five promotion branches now require one approving review, CODEOWNER review,
+stale-review dismissal, approval after the last push, conversation resolution,
+linear history, signed commits, and enforcement for administrators. Force
+pushes and deletion are disabled. Each requires the eleven uniquely named
+`OpenBao / ...` status contexts. These protections were added during this
+remediation; they were absent from four branches at initial inventory.
 
 ## All observed remote branches
 
@@ -97,19 +98,18 @@ No runtime authorization was enabled during reconciliation.
 - `README.md`, `REPOSITORY_PROFILE.md`, production preflight, restore
   certification, rollback and final certification evidence are absent from the
   current development line.
-- There are no GitHub deployment environments or protected-environment
-  reviewers.
+- Twenty-three exact-branch deployment environment shells now exist for plan,
+  runtime, apply, backup, restore, observation and release jobs. Their custom
+  branch policies are active. Required-reviewer installation is externally
+  blocked until `@kazan555` accepts pending read-only collaborator invitation
+  `331318935`; an empty reviewer rule is not represented as approval protection.
 - Repository rulesets are empty.
 - Actions permit all actions and repository-level SHA pin enforcement is off.
 - Default workflow permissions are read-only and workflows cannot approve pull
   requests; individual legacy workflows still require permission review.
-- Only `main` is protected; it has no required status checks and does not
-  require CODEOWNER review.
-- `production` has no workflow. `main` has only upstream source sync. The
-  development/test/staging lines have seven legacy validators but lack the
-  complete uniquely named configuration, policy, security, image, SBOM,
-  provenance, integration, recovery, drift, release and environment-deployment
-  checks required for production.
+- The protected branches do not yet contain remediation-source CODEOWNERS and
+  workflows; those files take effect there only through the required promotion
+  PRs. Protection itself is already active and will not be bypassed.
 - Action dependencies are not repository-wide enforced as immutable SHAs.
 - No release tag exists in this repository.
 - Current documentation describes source-prepared, non-deployed behavior and
@@ -135,8 +135,10 @@ remain unchanged.
 
 The remediation branch now contains CODEOWNERS, Dependabot configuration,
 repository-wide immutable action validation, the eleven uniquely named CI
-contexts, protected plan/saved-plan apply workflows, release signing and
-provenance, backup/isolated restore and drift workflows. Those source gaps are
-closed on the remediation branch. Their remote protection, environment,
-private-runner and runtime execution evidence remain open until promotion; this
-inventory does not retroactively mark them deployed.
+contexts, protected plan/saved-plan apply workflows, a protected exact-artifact
+runtime deploy path, release signing and provenance, backup/isolated restore
+and drift workflows. Remote branch protection and exact environment branch
+policies are installed. Required environment reviewers, variables, private
+runners and runtime execution evidence remain open until external access and
+promotion gates complete; this inventory does not retroactively mark them
+deployed.

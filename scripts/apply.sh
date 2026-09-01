@@ -84,6 +84,9 @@ while IFS= read -r operation; do
       bao secrets enable -path="$(jq -r '.path' "$payload")" \
         -description="$(jq -r '.description' "$payload")" -version=2 kv >/dev/null
       ;;
+    secret_engine_config:create|secret_engine_config:update)
+      bao write "$name" @"$payload" >/dev/null
+      ;;
     auth_method:create)
       bao auth enable -path="$(jq -r '.path' "$payload")" \
         -plugin-name="$(jq -r '.plugin_name' "$payload")" \
@@ -115,11 +118,12 @@ done < <(jq -c '
   sort_by(
     if .kind == "auth_plugin" then 0
     elif .kind == "secret_engine" then 1
-    elif .kind == "auth_method" then 2
-    elif .kind == "policy" then 3
-    elif .kind == "auth_config" then 4
-    elif .kind == "jwt_role" then 5
-    elif .kind == "audit_device" then 6
+    elif .kind == "secret_engine_config" then 2
+    elif .kind == "auth_method" then 3
+    elif .kind == "policy" then 4
+    elif .kind == "auth_config" then 5
+    elif .kind == "jwt_role" then 6
+    elif .kind == "audit_device" then 7
     else 99 end
   )[]
 ' "$plan")

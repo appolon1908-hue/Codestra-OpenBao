@@ -4,6 +4,7 @@ services:
   openbao:
     image: ghcr.io/openbao/openbao@sha256:e29524ba7c3f20d01f562c481e3eccbad6c91df45a2f2531433da4951e408cff
     platform: linux/amd64
+    container_name: ${OPENBAO_CONTAINER_NAME:?set the reviewed container name}
     hostname: ${OPENBAO_NODE_ID:?set the reviewed node ID}
     user: openbao
     command:
@@ -28,12 +29,14 @@ services:
       - ${OPENBAO_DATA_DIR:?set existing or explicitly provisioned data directory}:/openbao/data
       - ${OPENBAO_AUDIT_DIR:?set protected audit directory}:/openbao/audit
       - ${OPENBAO_PLUGIN_DIR:?set exact release plugin directory}:/openbao/plugins:ro
-    secrets:
-      - openbao-server-cert
-      - openbao-server-key
-      - codestra-client-ca
-      - openbao-health-client-cert
-      - openbao-health-client-key
+      # Bind mounts preserve the reviewed host ownership and modes. Compose
+      # file-backed secrets are intentionally not used because they are
+      # mounted 0444 by implementations that cannot honor uid/gid/mode.
+      - ${OPENBAO_SERVER_CERT_FILE:?set server certificate path}:/run/secrets/openbao-server-cert:ro
+      - ${OPENBAO_SERVER_KEY_FILE:?set server private-key path}:/run/secrets/openbao-server-key:ro
+      - ${CODESTRA_CLIENT_CA_FILE:?set client CA path}:/run/secrets/codestra-client-ca:ro
+      - ${OPENBAO_HEALTH_CLIENT_CERT_FILE:?set health client certificate path}:/run/secrets/openbao-health-client-cert:ro
+      - ${OPENBAO_HEALTH_CLIENT_KEY_FILE:?set health client private-key path}:/run/secrets/openbao-health-client-key:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
       - /openbao/logs:rw,noexec,nosuid,nodev,size=64m,mode=0750
@@ -53,18 +56,6 @@ services:
       com.codestra.source-sha: ${CODESTRA_SOURCE_SHA:?set exact protected source SHA}
       com.codestra.image-digest: sha256:e29524ba7c3f20d01f562c481e3eccbad6c91df45a2f2531433da4951e408cff
       com.codestra.owner: platform-security
-
-secrets:
-  openbao-server-cert:
-    file: ${OPENBAO_SERVER_CERT_FILE:?set server certificate path}
-  openbao-server-key:
-    file: ${OPENBAO_SERVER_KEY_FILE:?set server private-key path}
-  codestra-client-ca:
-    file: ${CODESTRA_CLIENT_CA_FILE:?set client CA path}
-  openbao-health-client-cert:
-    file: ${OPENBAO_HEALTH_CLIENT_CERT_FILE:?set health client certificate path}
-  openbao-health-client-key:
-    file: ${OPENBAO_HEALTH_CLIENT_KEY_FILE:?set health client private-key path}
 
 networks:
   client:

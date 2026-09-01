@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-AUTHORITY_ROOTS = ("config", "deploy", "monitoring", "openbao", "plugins", "scripts")
+AUTHORITY_ROOTS = (".github", "config", "deploy", "monitoring", "openbao", "plugins", "scripts")
 CERTIFICATION_FILES = {
     "development": "development-certification.json",
     "test": "test-certification.json",

@@ -12,6 +12,11 @@ bundle is keyless-signed and receives GitHub build provenance. Production
 deployment records the previous image digest, source label, Compose/systemd
 definition, config checksum, volume identity and fresh off-host snapshot.
 
+The runtime deployer retains the stopped previous container under a
+timestamped `-rollback-` name and retains every SHA-named configuration/plugin
+directory. It does not delete either copy. Promotion evidence must record that
+container name before any rollback is authorized.
+
 ## Runtime rollback
 
 1. Stop further promotion and consumer migration.

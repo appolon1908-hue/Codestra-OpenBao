@@ -24,7 +24,7 @@ class BuildPlanTests(unittest.TestCase):
         for name, value in {
             "mounts.json": {}, "auth.json": {}, "audit.json": {},
             "policies.json": [], "jwt-config.json": {}, "jwt-roles.json": [],
-            "plugin-info.json": {},
+            "plugin-info.json": {}, "codestra-config.json": {},
         }.items():
             (root / name).write_text(json.dumps(value), encoding="utf-8")
         return root
@@ -40,6 +40,12 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual(plugin["payload"]["sha256"], "609c33db8bcbedc8a3e37ed336efe635cb9ef00b6a633fa91f8f2fd08d2d1db3")
         auth = next(item for item in plan["operations"] if item["kind"] == "auth_method")
         self.assertEqual(auth["payload"]["plugin_name"], "codestra-jwt-replay")
+        kv_config = next(item for item in plan["operations"] if item["kind"] == "secret_engine_config")
+        self.assertEqual(kv_config["payload"], {
+            "max_versions": 10,
+            "cas_required": True,
+            "delete_version_after": "2160h",
+        })
 
     def test_incompatible_mount_warns_and_never_replaces(self) -> None:
         live = self.live()
@@ -47,7 +53,21 @@ class BuildPlanTests(unittest.TestCase):
         plan = MODULE.build("test", live, "b" * 40)
         self.assertTrue(any("replacement is prohibited" in warning for warning in plan["warnings"]))
         self.assertFalse(any(item["kind"] == "secret_engine" for item in plan["operations"]))
+        self.assertFalse(any(item["kind"] == "secret_engine_config" for item in plan["operations"]))
         self.assertEqual(plan["counts"]["destroy"], 0)
+
+    def test_kv_v2_security_configuration_drift_is_planned(self) -> None:
+        live = self.live()
+        (live / "mounts.json").write_text(json.dumps({
+            "codestra/": {"type": "kv", "options": {"version": "2"}}
+        }))
+        (live / "codestra-config.json").write_text(json.dumps({
+            "data": {"max_versions": 0, "cas_required": False, "delete_version_after": "0s"}
+        }))
+        plan = MODULE.build("development", live, "e" * 40)
+        operation = next(item for item in plan["operations"] if item["kind"] == "secret_engine_config")
+        self.assertEqual(operation["action"], "update")
+        self.assertEqual(operation["name"], "codestra/config")
 
     def test_environment_plan_contains_only_environment_roles(self) -> None:
         plan = MODULE.build("staging", self.live(), "c" * 40)

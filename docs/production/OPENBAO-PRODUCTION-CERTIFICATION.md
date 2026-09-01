@@ -4,7 +4,7 @@ Assessment date: 2026-09-01
 
 | Category | Status | Evidence |
 | --- | --- | --- |
-| Repository authority | WARNING | complete remediation source is not yet promoted/protected |
+| Repository authority | WARNING | remediation is remote and protected promotion gates are installed; source is not yet promoted |
 | Upstream provenance | PASS | exact v2.6.2 tag commit and image identity verified |
 | Image immutability | PASS | desired source uses exact linux/amd64 manifest digest only |
 | SBOM | PASS | image and replay-plugin CycloneDX inventories regenerated and matched |
@@ -23,7 +23,7 @@ Assessment date: 2026-09-01
 | Audience validation | FAIL | source tested; live negative test absent |
 | Environment isolation | FAIL | source tested; live cross-environment denial absent |
 | Policy least privilege | PASS | generated exact policies and negative source tests pass |
-| KV security | FAIL | live KV v2 engine is not configured |
+| KV security | FAIL | source plans and reads back CAS, version retention and deletion policy; live KV v2 is not configured |
 | Dynamic credentials | N/A | no compatible consumer has been authorized for migration |
 | Lease renewal | FAIL | no runtime consumer evidence |
 | Rotation | FAIL | no staged N/N+1 runtime evidence |
@@ -51,8 +51,9 @@ Open critical issues: 6
 2. Production has active unencrypted swap.
 3. Backup, immutable off-host storage and isolated restore evidence are absent.
 4. Live native TLS/mTLS, Keycloak auth, audit and observability do not match desired source.
-5. Protected environments/private runners and promotion-branch protections are
-   not configured.
+5. Protected environment reviewer `@kazan555` is pending collaborator
+   acceptance; environment variables/private runners and promotions are not
+   complete. Promotion-branch protections and exact branch policies are active.
 6. The live uninitialized v2.6.1 bootstrap differs from the desired immutable
    v2.6.2 release and the observed edge is Nginx rather than required Caddy.
 

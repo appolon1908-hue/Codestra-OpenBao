@@ -37,6 +37,13 @@ bao auth list -format=json > "$live_dir/auth.json"
 bao audit list -format=json > "$live_dir/audit.json"
 bao policy list -format=json > "$live_dir/policies.json"
 
+if jq -e '."codestra/".type == "kv" and ."codestra/".options.version == "2"' \
+  "$live_dir/mounts.json" >/dev/null; then
+  bao read -format=json codestra/config > "$live_dir/codestra-config.json"
+else
+  printf '{}\n' > "$live_dir/codestra-config.json"
+fi
+
 mount="$(jq -r '.mount' openbao/auth/jwt-roles.v1.json)"
 plugin="$(jq -r '.name' plugins/codestra-jwt-replay/plugin.v1.json)"
 plugin_version="$(jq -r '.version' plugins/codestra-jwt-replay/plugin.v1.json)"

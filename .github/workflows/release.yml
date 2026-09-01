@@ -42,8 +42,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: '1.25.13'
-          cache: true
-          cache-dependency-path: upstream/go.sum
+          cache: false
       - name: Verify exact protected source and release identifier
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}

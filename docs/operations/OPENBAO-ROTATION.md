@@ -42,3 +42,22 @@ accessors and dynamic child leases for that identity, then prove:
 Rotation and revocation are currently source-defined but not runtime-certified;
 their production certification state is `FAIL` until development, test and
 staging evidence exists.
+
+The file-render contract is generated per exact secret object. For example,
+the following prepares a secret-free staging bundle; it does not authenticate
+or read the secret:
+
+```bash
+scripts/render_agent_config.py \
+  --environment staging \
+  --identity kong-gateway \
+  --secret-path codestra/staging/kong/runtime \
+  --destination /run/codestra-secrets/kong-gateway/runtime.json \
+  --service-uid 10001 \
+  --service-gid 10001 \
+  --output-dir /protected/release/agent-kong-staging
+```
+
+The consumer deployment must run the Agent as that UID/GID, pre-create the
+destination directory for only that service, and mount the JWT and TLS files
+read-only. The application starts only after the `0400` destination exists.
