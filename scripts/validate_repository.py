@@ -44,16 +44,26 @@ EXPECTED_IMAGE_DIGEST = (
 def _logical_shell_lines(source: str) -> tuple[str, ...]:
     records: list[str] = []
     pending = ""
+    heredocs: list[str] = []
     for raw in source.splitlines():
+        if heredocs:
+            if raw.strip() == heredocs[0]:
+                heredocs.pop(0)
+            continue
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        pending += line
+        pending = pending + line
         trailing_backslashes = len(pending) - len(pending.rstrip("\\"))
         if trailing_backslashes % 2 == 1:
             pending = pending[:-1]
             continue
         records.append(pending)
+        for match in re.finditer(
+            r"(?<!<)<<-?(?!<)\s*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z_][A-Za-z0-9_]*))",
+            pending,
+        ):
+            heredocs.append(next(value for value in match.groups() if value))
         pending = ""
     if pending:
         records.append(pending)
@@ -66,9 +76,7 @@ def reject_protected_pushes(source: str) -> None:
     approved = ["git", "push", "origin", "HEAD:refs/heads/${SYNC_BRANCH}"]
     approved_count = 0
     for line in _logical_shell_lines(source):
-        candidate_probe = re.sub(r"[\"']", "", line)
-        candidate_probe = re.sub(r"\\([^\n])", r"\1", candidate_probe)
-        if re.search(r"\bgit\b.*\bpush\b", candidate_probe) is None:
+        if line in {'remote_branch="$(', ')"'}:
             continue
         try:
             lexer = shlex.shlex(line, posix=True, punctuation_chars="();&|<>")
@@ -80,6 +88,24 @@ def reject_protected_pushes(source: str) -> None:
         if words == approved:
             approved_count += 1
             continue
+        for word in words:
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=(?:git|push)", word):
+                raise ValueError("protected_branch_sync_forbidden:dynamic_command")
+        segments: list[list[str]] = [[]]
+        for word in words:
+            if word in {"{", "}"} or (word and set(word) <= set("();&|")):
+                segments.append([])
+            else:
+                segments[-1].append(word)
+        if re.match(r"^(?:(?:elif|if|while)\s+)?(?:\(\(|\[\[)", line) is None:
+            for segment in segments:
+                while segment and (
+                    segment[0] in {"!", "do", "elif", "if", "then", "until", "while"}
+                    or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", segment[0])
+                ):
+                    segment = segment[1:]
+                if segment and ("$" in segment[0] or "`" in segment[0]):
+                    raise ValueError("protected_branch_sync_forbidden:dynamic_command")
         git_push = False
         for index, word in enumerate(words):
             if Path(word).name != "git":
@@ -87,9 +113,36 @@ def reject_protected_pushes(source: str) -> None:
             command_index = index + 1
             while command_index < len(words) and words[command_index].startswith("-"):
                 option = words[command_index]
+                if option == "-c":
+                    if command_index + 1 >= len(words):
+                        raise ValueError("sync_shell_parse_failed")
+                    config = words[command_index + 1]
+                    if config.lower().startswith("alias.") or "$" in config:
+                        raise ValueError(
+                            "protected_branch_sync_forbidden:dynamic_command"
+                        )
+                if option.lower().startswith(("-calias.", "--config-env=alias.")):
+                    raise ValueError(
+                        "protected_branch_sync_forbidden:dynamic_command"
+                    )
                 command_index += 2 if option in {
                     "-c", "-C", "--git-dir", "--work-tree"
                 } else 1
+            if (
+                command_index < len(words)
+                and words[command_index] == "config"
+                and any(
+                    "alias." in argument.lower()
+                    or "$" in argument
+                    or "`" in argument
+                    for argument in words[command_index + 1 :]
+                )
+            ):
+                raise ValueError("protected_branch_sync_forbidden:dynamic_command")
+            if command_index < len(words) and (
+                "$" in words[command_index] or "`" in words[command_index]
+            ):
+                raise ValueError("protected_branch_sync_forbidden:dynamic_command")
             if command_index < len(words) and words[command_index] == "push":
                 git_push = True
                 break
@@ -97,7 +150,13 @@ def reject_protected_pushes(source: str) -> None:
             re.search(r"\bgit\s+push\b", re.sub(r"\\([^\n])", r"\1", word))
             for word in words
         )
-        if git_push or nested_push:
+        dynamic_push = any(
+            word == "push"
+            and index > 0
+            and ("$" in words[index - 1] or "`" in words[index - 1])
+            for index, word in enumerate(words)
+        )
+        if git_push or nested_push or dynamic_push:
             raise ValueError("protected_branch_sync_forbidden:push_not_exact")
     if approved_count != 1:
         raise ValueError("approved_sync_push_count_invalid")
@@ -106,7 +165,7 @@ def reject_protected_pushes(source: str) -> None:
 def validate_sync_branch_authority(source: str) -> None:
     """Require one immutable, deterministic authority for the sync destination."""
 
-    expected = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
+    expected = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}-${GITHUB_SHA}"'
     lines = _logical_shell_lines(source)
     if lines.count(expected) != 1:
         raise ValueError("sync_branch_authority_invalid")
@@ -185,7 +244,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
     required = (
         "[[ \"$UPSTREAM_REF\" =~ ^[0-9a-f]{40}$ ]]",
         "[[ \"$UPSTREAM_SHA\" == \"$UPSTREAM_REF\" ]]",
-        'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"',
+        'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}-${GITHUB_SHA}"',
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
         'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',
@@ -213,7 +272,13 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         'git switch --create "$SYNC_BRANCH" --track',
         "(( existing_sync_branch == 1 )) || exit 0",
         "Existing sync branch differs from deterministic rebuild.",
-        'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base development',
+        'gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls"',
+        '-f base="development"',
+        '-f head="${GITHUB_REPOSITORY_OWNER}:${SYNC_BRANCH}"',
+        '.head.repo.full_name',
+        '[[ "$pr_head_sha" == "$LOCAL_SHA" ]]',
+        '[[ "$pr_repository" == "$GITHUB_REPOSITORY" ]]',
+        "github.ref == 'refs/heads/development'",
         "Multiple open pull requests claim the sync branch.",
     )
     for token in required:

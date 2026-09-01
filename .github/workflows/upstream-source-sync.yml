@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   sync:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && github.ref == 'refs/heads/development'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -57,7 +57,7 @@ jobs:
           [[ "$UPSTREAM_REF" =~ ^[0-9a-f]{40}$ ]] || exit 2
           [[ "$IMPORT_PATH" == "upstream" ]] || exit 2
 
-          readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"
+          readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}-${GITHUB_SHA}"
           existing_sync_branch=0
           set +e
           remote_branch="$(
@@ -502,7 +502,7 @@ jobs:
 
           git config user.name 'codestra-upstream-sync'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          [[ "$SYNC_BRANCH" == "sync/openbao-upstream-${UPSTREAM_SHA}" ]]
+          [[ "$SYNC_BRANCH" == "sync/openbao-upstream-${UPSTREAM_SHA}-${GITHUB_SHA}" ]]
           git add -f -- upstream
           git add -- CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json
           if git diff --cached --quiet; then
@@ -515,9 +515,15 @@ jobs:
             git commit -m "vendor: sync official OpenBao upstream ${UPSTREAM_SHA}"
             git push origin "HEAD:refs/heads/${SYNC_BRANCH}"
           fi
+          LOCAL_SHA="$(git rev-parse HEAD)"
           mapfile -t open_prs < <(
-            gh pr list --repo "$GITHUB_REPOSITORY" --state open --base development \
-              --head "$SYNC_BRANCH" --json number --jq '.[].number'
+            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
+              -f state=open \
+              -f base="development" \
+              -f head="${GITHUB_REPOSITORY_OWNER}:${SYNC_BRANCH}" \
+              -f per_page=100 \
+              --paginate \
+              --jq '.[] | [.number,.base.ref,.head.ref,.head.sha,.head.repo.full_name] | @tsv'
           )
           case "${#open_prs[@]}" in
             0)
@@ -529,6 +535,13 @@ jobs:
                 --body "Pins and imports the exact OpenBao upstream commit ${UPSTREAM_SHA}. Deployment remains disabled. This PR requires normal source validation and independent review."
               ;;
             1)
+              IFS=$'\t' read -r pr_number pr_base pr_head pr_head_sha pr_repository extra <<< "${open_prs[0]}"
+              [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]
+              [[ "$pr_base" == "development" ]]
+              [[ "$pr_head" == "$SYNC_BRANCH" ]]
+              [[ "$pr_head_sha" == "$LOCAL_SHA" ]]
+              [[ "$pr_repository" == "$GITHUB_REPOSITORY" ]]
+              [[ -z "${extra:-}" ]]
               ;;
             *)
               echo 'Multiple open pull requests claim the sync branch.' >&2
