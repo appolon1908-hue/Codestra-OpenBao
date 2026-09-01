@@ -28,11 +28,52 @@ APPROVED_ACTION_REFERENCES = {
     "./.github/workflows/_deploy-saved-plan.yml",
 }
 
+FORBIDDEN_SECRET_FIXTURE_MARKER = (
+    "OPENBAO_FORBIDDEN_SECRET_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n"
+)
+REMOVED_UPSTREAM_SECRET_FIXTURE_PATHS = frozenset({
+    Path("upstream/api/test-fixtures/keys/bad-cert.pem"),
+    Path("upstream/api/test-fixtures/keys/bad-key.pem"),
+    Path("upstream/api/test-fixtures/keys/cert.pem"),
+    Path("upstream/api/test-fixtures/keys/key.pem"),
+    Path("upstream/api/test-fixtures/root/rootcacert.pem"),
+    Path("upstream/api/test-fixtures/root/rootcakey.pem"),
+    Path("upstream/command/agent/test-fixtures/reload/reload_bar.key"),
+    Path("upstream/command/agent/test-fixtures/reload/reload_bar.pem"),
+    Path("upstream/command/agent/test-fixtures/reload/reload_ca.pem"),
+    Path("upstream/command/agent/test-fixtures/reload/reload_foo.key"),
+    Path("upstream/command/agent/test-fixtures/reload/reload_foo.pem"),
+    Path("upstream/command/agentproxyshared/auth/cert/test-fixtures/keys/cert.pem"),
+    Path("upstream/command/agentproxyshared/auth/cert/test-fixtures/keys/key.pem"),
+    Path("upstream/command/agentproxyshared/auth/cert/test-fixtures/root/rootcacert.pem"),
+    Path("upstream/command/agentproxyshared/auth/cert/test-fixtures/root/rootcakey.pem"),
+    Path("upstream/command/proxy/test-fixtures/reload/reload_bar.key"),
+    Path("upstream/command/proxy/test-fixtures/reload/reload_bar.pem"),
+    Path("upstream/command/proxy/test-fixtures/reload/reload_ca.pem"),
+    Path("upstream/command/proxy/test-fixtures/reload/reload_foo.key"),
+    Path("upstream/command/proxy/test-fixtures/reload/reload_foo.pem"),
+    Path("upstream/command/server/test-fixtures/reload/reload_bar.key"),
+    Path("upstream/command/server/test-fixtures/reload/reload_bar.pem"),
+    Path("upstream/command/server/test-fixtures/reload/reload_ca.pem"),
+    Path("upstream/command/server/test-fixtures/reload/reload_foo.key"),
+    Path("upstream/command/server/test-fixtures/reload/reload_foo.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/chain.crt.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/ecdsa.key"),
+    Path("upstream/vault/diagnose/test-fixtures/expiredcert.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/expiredprivatekey.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/fakecert.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/goodcertbadroot.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/goodcertwithroot.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/goodkey.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/intermediateCert.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/selfSignedCert.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/selfSignedCertKey.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/trailingdatacert.pem"),
+    Path("upstream/vault/diagnose/test-fixtures/twoRootCA.pem"),
+})
 SANITIZED_SECRET_FIXTURES = {
-    Path("upstream/sdk/helper/testhelpers/pki/cert.p12"):
-        "OPENBAO_PKCS12_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
-    Path("upstream/command/testdata/ossl-key.pem"):
-        "OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
+    path: FORBIDDEN_SECRET_FIXTURE_MARKER
+    for path in REMOVED_UPSTREAM_SECRET_FIXTURE_PATHS
 }
 
 EXPECTED_UPSTREAM_SHA = "dd9c19c37a878cf4a81b18efb8d6f0599c7da923"
@@ -260,6 +301,10 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         "git add -f -- upstream",
         "original_block_sha256",
         "PRIVATE_KEY_TEST_FIXTURE_REMOVED",
+        "EXPECTED_FORBIDDEN_SECRET_FIXTURES",
+        "if discovered_forbidden_secret_fixtures != EXPECTED_FORBIDDEN_SECRET_FIXTURES",
+        "OPENBAO_FORBIDDEN_SECRET_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL",
+        "forbidden upstream secret fixture path drift",
         "CODESTRA_CLIENT_SECRET_FIXTURE_INVALID",
         "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID",
         "b\\.[A-Za-z0-9_-]{64,}",

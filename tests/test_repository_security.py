@@ -469,13 +469,32 @@ class RepositorySecurityTests(unittest.TestCase):
             VALIDATOR.validate_sync_workflow(unsafe, yaml.safe_load(unsafe))
 
     def test_only_exactly_sanitized_secret_fixture_paths_are_allowed(self) -> None:
+        workflow_fixture_block = self.sync_source.split(
+            "EXPECTED_FORBIDDEN_SECRET_FIXTURES = {", 1
+        )[1].split("\n          }", 1)[0]
+        workflow_fixture_paths = {
+            Path(path)
+            for path in re.findall(r"Path\('([^']+)'\)", workflow_fixture_block)
+        }
+        self.assertEqual(len(workflow_fixture_paths), 38)
+        self.assertEqual(
+            workflow_fixture_paths,
+            set(VALIDATOR.REMOVED_UPSTREAM_SECRET_FIXTURE_PATHS),
+        )
         expected = {
-            Path("upstream/sdk/helper/testhelpers/pki/cert.p12"):
-                "OPENBAO_PKCS12_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
-            Path("upstream/command/testdata/ossl-key.pem"):
-                "OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
+            path: VALIDATOR.FORBIDDEN_SECRET_FIXTURE_MARKER
+            for path in VALIDATOR.REMOVED_UPSTREAM_SECRET_FIXTURE_PATHS
         }
         self.assertEqual(VALIDATOR.SANITIZED_SECRET_FIXTURES, expected)
+        self.assertIn(
+            "if discovered_forbidden_secret_fixtures != "
+            "EXPECTED_FORBIDDEN_SECRET_FIXTURES",
+            self.sync_source,
+        )
+        self.assertIn(
+            "OPENBAO_FORBIDDEN_SECRET_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL",
+            self.sync_source,
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for relative, contents in expected.items():
@@ -484,17 +503,25 @@ class RepositorySecurityTests(unittest.TestCase):
                 path.write_text(contents)
             VALIDATOR.validate_secret_file_policy(root)
 
-            drifted = root / "upstream/command/testdata/ossl-key.pem"
+            drifted_relative = min(expected, key=lambda path: path.as_posix())
+            drifted = root / drifted_relative
             drifted.write_text("not sanitized\n")
             with self.assertRaisesRegex(ValueError, "sanitized_fixture_content_drift"):
                 VALIDATOR.validate_secret_file_policy(root)
 
-            drifted.write_text(expected[Path("upstream/command/testdata/ossl-key.pem")])
+            drifted.write_text(expected[drifted_relative])
             unexpected = root / "upstream/runtime/private.pem"
             unexpected.parent.mkdir(parents=True)
             unexpected.write_text("also not allowed\n")
             with self.assertRaisesRegex(ValueError, "forbidden_secret_file"):
                 VALIDATOR.validate_secret_file_policy(root)
+        weakened = self.sync_source.replace(
+            "if discovered_forbidden_secret_fixtures != "
+            "EXPECTED_FORBIDDEN_SECRET_FIXTURES",
+            "if False",
+        )
+        with self.assertRaisesRegex(ValueError, "reviewed_sync_boundary_missing"):
+            VALIDATOR.validate_sync_workflow(weakened, yaml.safe_load(weakened))
         self.assertIn(
             "synchronized_at = previous_lock.get('synchronized_at', synchronized_at)",
             self.sync_source,
