@@ -10,6 +10,10 @@ RTO is four hours.
 `scripts/backup.sh` never prints or uploads snapshot data. GitHub may retain
 only sanitized backup metadata. A snapshot command without local artifact,
 checksum, decrypt/inspect proof and off-host read-back is not a passing backup.
+`scheduled-backup.yml` is the daily 02:17 UTC production trigger after final
+promotion; its environment is restricted to `main`, it checks out and verifies
+the exact `production` branch, and it artifacts only the sanitized evidence
+JSON.
 
 ## Isolated restore
 
@@ -31,8 +35,7 @@ printing its value.
 
 ## Current evidence
 
-No scheduled production backup timer, protected immutable off-host destination
-attestation or successful isolated restore evidence was observed on
-2026-09-01. Therefore `BACKUP=FAIL`, `OFFHOST_BACKUP=FAIL`, `RESTORE=FAIL`,
-`RPO=FAIL` and `RTO=FAIL`. The automation is prepared; the runtime gates have
-not passed.
+No scheduled production backup run, protected immutable off-host destination
+attestation or successful isolated restore evidence was observed on 2026-09-01.
+Therefore `BACKUP=FAIL`, `OFFHOST_BACKUP=FAIL`, `RESTORE=FAIL`, `RPO=FAIL` and
+`RTO=FAIL`. The scheduled source is prepared; the runtime gates have not passed.

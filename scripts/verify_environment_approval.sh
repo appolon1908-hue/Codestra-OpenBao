@@ -10,7 +10,9 @@ expected_environment="${OPENBAO_APPROVAL_ENVIRONMENT:-openbao-${environment}}"
 [[ "$repository" == appolon1908-hue/Codestra-OpenBao ]]
 [[ "$required_reviewer" == kazan555 ]]
 [[ "$expected_environment" == "openbao-${environment}" || \
-   "$expected_environment" == "openbao-${environment}-runtime" ]]
+   "$expected_environment" == "openbao-${environment}-runtime" || \
+   "$expected_environment" == "openbao-${environment}-certify" || \
+   "$expected_environment" == "openbao-${environment}-initialize" ]]
 approvals="$(gh api "repos/${repository}/actions/runs/${run_id}/approvals")"
 jq -e \
   --arg reviewer "$required_reviewer" \

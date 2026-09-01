@@ -77,6 +77,20 @@ quorum and recovery custody. Restart one voter at a time. Confirm leader,
 peers, unsealed state, audit, metrics and workload renewals before proceeding.
 Dynamic consumers must revoke child leases on shutdown.
 
+## Scheduled backup and certification
+
+After final promotion, `scheduled-backup.yml` runs daily at 02:17 UTC from
+`main`, checks out the exact `production` authority, encrypts and verifies a
+Raft snapshot, and copies it with immutable semantics to the attested off-host
+remote. Only sanitized metadata evidence is uploaded to GitHub.
+
+`runtime-certification.yml` is non-production and approval-gated. It executes
+the owner-provided read-only/verifier callbacks through `rotate-test.sh` and
+`revoke-test.sh`; callback output is suppressed. A PASS requires CAS N→N+1,
+`0400` Agent refresh under the service UID/GID, new credential success, old
+credential revocation and failure, target identity denial, unrelated workload
+health, cross-environment denial and the sanitized audit alert.
+
 ## Incidents
 
 Seal state, audit failure, unavailable leader, auth surge, denial surge,

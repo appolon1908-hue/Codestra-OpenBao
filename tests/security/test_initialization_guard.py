@@ -24,6 +24,15 @@ class InitializationGuardTests(unittest.TestCase):
         self.assertNotIn("operator init", source)
         self.assertNotIn("-dev", source)
 
+    def test_initialization_workflow_is_non_production_and_never_uploads_custody(self) -> None:
+        workflow = (ROOT / ".github/workflows/initialize.yml").read_text(encoding="utf-8")
+        self.assertIn("options: [development, test, staging]", workflow)
+        self.assertNotIn("options: [development, test, staging, production]", workflow)
+        self.assertIn("scripts/verify_environment_approval.sh", workflow)
+        self.assertIn("scripts/initialize.sh", workflow)
+        self.assertIn("custodyArtifactUploaded:false", workflow)
+        self.assertNotIn("path: ${{ vars.OPENBAO_INIT_CUSTODY_FILE }}", workflow)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

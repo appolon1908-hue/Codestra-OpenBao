@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "runtimeApplyAuthorized": false,
   "backend": "integrated-raft-snapshot",
-  "schedule": "0 2 * * *",
+  "schedule": "17 2 * * *",
   "encryption": "age-x25519",
   "checksum": "sha256",
   "localProtectedCopyRequired": true,

@@ -39,6 +39,17 @@ class RecoveryContractTests(unittest.TestCase):
         self.assertNotIn("options: [development, test, staging, production]", workflow)
         self.assertIn("Upload only sanitized restore certification evidence", workflow)
 
+    def test_production_backup_is_scheduled_and_never_artifacts_snapshot_data(self) -> None:
+        workflow = (ROOT / ".github/workflows/scheduled-backup.yml").read_text()
+        self.assertIn("cron: '17 2 * * *'", workflow)
+        self.assertIn("ref: production", workflow)
+        self.assertIn("scripts/backup.sh", workflow)
+        self.assertIn("Upload sanitized evidence but never snapshot data", workflow)
+        self.assertNotIn("path: ${{ vars.OPENBAO_BACKUP_ROOT }}", workflow)
+
+        policy = json.loads((ROOT / "config/recovery/backup.v1.json").read_text())
+        self.assertEqual(policy["schedule"], "17 2 * * *")
+
 
 if __name__ == "__main__":
     unittest.main()

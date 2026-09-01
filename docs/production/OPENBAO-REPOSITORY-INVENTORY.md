@@ -98,19 +98,25 @@ No runtime authorization was enabled during reconciliation.
 - `README.md`, `REPOSITORY_PROFILE.md`, production preflight, restore
   certification, rollback and final certification evidence are absent from the
   current development line.
-- Twenty-three exact-branch deployment environment shells now exist for plan,
-  runtime, apply, backup, restore, observation and release jobs. Their custom
-  branch policies are active. Required-reviewer installation is externally
+- Thirty branch-restricted deployment environment shells now exist for plan,
+  runtime, initialization, certification, apply, backup, restore, observation
+  and release jobs. Dispatch environments admit only their exact promotion
+  branch; scheduled observation and production backup also admit `main`. Their
+  custom branch policies are active. Required-reviewer installation is externally
   blocked until `@kazan555` accepts pending read-only collaborator invitation
   `331318935`; an empty reviewer rule is not represented as approval protection.
 - Repository rulesets are empty.
-- Actions permit all actions and repository-level SHA pin enforcement is off.
+- Repository Actions now permit GitHub-owned actions plus only the exact
+  `sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62`
+  third-party action. Full-length commit-SHA pinning is enforced at repository
+  level. The settings were applied and read back through the repository API on
+  2026-09-01.
 - Default workflow permissions are read-only and workflows cannot approve pull
   requests; individual legacy workflows still require permission review.
 - The protected branches do not yet contain remediation-source CODEOWNERS and
   workflows; those files take effect there only through the required promotion
   PRs. Protection itself is already active and will not be bypassed.
-- Action dependencies are not repository-wide enforced as immutable SHAs.
+- Action dependencies are repository-wide enforced as immutable SHAs.
 - No release tag exists in this repository.
 - Current documentation describes source-prepared, non-deployed behavior and
   cannot serve as production certification.
