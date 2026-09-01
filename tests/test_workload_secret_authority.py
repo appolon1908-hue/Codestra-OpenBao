@@ -80,6 +80,38 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         policy["secretInjection"]["environmentVariablesAllowed"] = True
         self.reject(policy)
 
+    def test_static_kv_lease_model_drift_is_rejected(self) -> None:
+        policy = copy.deepcopy(self.policy)
+        policy["secretInjection"]["staticKvSecretLeaseRenewalRequired"] = True
+        self.reject(policy)
+
+        policy = copy.deepcopy(self.policy)
+        policy["secretInjection"]["staticKvRerenderOnChangeRequired"] = False
+        self.reject(policy)
+
+        policy = copy.deepcopy(self.policy)
+        policy["secretInjection"]["agentAuthTokenRenewalRequired"] = False
+        self.reject(policy)
+
+    def test_dynamic_secret_lease_controls_are_required(self) -> None:
+        policy = copy.deepcopy(self.policy)
+        policy["secretInjection"]["dynamicSecretLeaseRenewalRequired"] = False
+        self.reject(policy)
+
+        policy = copy.deepcopy(self.policy)
+        policy["secretInjection"]["dynamicSecretRevocationOnShutdownRequired"] = False
+        self.reject(policy)
+
+    def test_static_and_dynamic_evidence_are_distinguished(self) -> None:
+        for required in (
+            "agent_auth_token_accessor_hash",
+            "secret_version",
+            "dynamic_lease_id_hash_if_applicable",
+        ):
+            policy = copy.deepcopy(self.policy)
+            policy["requiredEvidence"].remove(required)
+            self.reject(policy)
+
     def test_cross_service_wildcard_role_is_rejected(self) -> None:
         policy = copy.deepcopy(self.policy)
         policy["roles"][0]["serviceIdentity"] = "all-services"

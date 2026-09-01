@@ -70,6 +70,13 @@ A dedicated backend/execution workload should receive only the exact paths it ne
 
 Prefer short-lived workload identity over static shared tokens. The target integration is Keycloak-issued workload identity with exact audience/client/scope validation where supported, or another reviewed machine-auth mechanism with equivalent least privilege.
 
+Static KV values do not produce renewable secret leases. The agent must renew
+its short-lived authentication token and re-render the root-owned file when the
+KV version changes. Dynamic secrets, when separately enabled by reviewed
+policy, must renew their lease and revoke it on shutdown. Evidence records only
+an auth-token accessor hash, KV version, and a dynamic lease ID hash when one is
+actually applicable; it never records secret values.
+
 Every workload policy must bind:
 
 - one environment;
