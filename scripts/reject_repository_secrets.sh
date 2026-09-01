@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 search_root="${1:-.}"
-pattern="(BEGIN ([A-Z0-9][A-Z0-9 -]{0,63} )?PRIVATE KEY( BLOCK)?|[\"']?Authorization[\"']?[[:space:]]*:[[:space:]]*[\"']?[[:space:]]*Bearer[[:space:]]+[-A-Za-z0-9._~+/]{16,}=*|[\"']?client_secret[\"']?[[:space:]]*[:=][[:space:]]*[\"']?[^[:space:]<\"']+|(^|[^A-Za-z0-9])(hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}|(^|[^A-Za-z0-9])s\.[A-Za-z0-9_-]{16,}|(^|[^A-Za-z0-9])b\.[A-Za-z0-9_-]{64,}|(AKIA|ASIA)[0-9A-Z]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox(a|b|p|r|s)-[A-Za-z0-9-]{12,}|xapp-[A-Za-z0-9-]{12,}|SK[0-9a-fA-F]{32}|AIza[0-9A-Za-z_-]{30,}|sk_live_[0-9A-Za-z]{16,})"
+pattern="(BEGIN ([A-Z0-9][A-Z0-9 -]{0,63} )?PRIVATE KEY( BLOCK)?|[\"']?[Aa]uthorization[\"']?[[:space:]]*:[[:space:]]*[\"']?[[:space:]]*[Bb]earer[[:space:]]+[-A-Za-z0-9._~+/]{16,}=*|[\"']?[Cc][Ll][Ii][Ee][Nn][Tt]_[Ss][Ee][Cc][Rr][Ee][Tt][\"']?[[:space:]]*[:=][[:space:]]*[\"'][^[:space:]<\"']+[\"']|(^|[^A-Za-z0-9])s\.[A-Za-z0-9_-]{24}([[:space:]\"'\`,;)}]|$)|(^|[^A-Za-z0-9])(hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}|(^|[^A-Za-z0-9])b\.[A-Za-z0-9_-]{64,}([[:space:]\"'\`,;)}]|$)|(AKIA|ASIA)[0-9A-Z]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox(a|b|p|r|s)-[A-Za-z0-9-]{12,}|xapp-[A-Za-z0-9-]{12,}|SK[0-9a-fA-F]{32}|AIza[0-9A-Za-z_-]{30,}|sk_live_[0-9A-Za-z]{16,})"
 path_list="$(mktemp)"
 trap 'rm -f -- "$path_list"' EXIT
 
@@ -23,7 +23,7 @@ while IFS= read -r -d '' path; do
     exit 2
   fi
   set +e
-  LC_ALL=C grep -aEiq "$pattern" -- "$path"
+  LC_ALL=C grep -aEq "$pattern" -- "$path"
   secret_scan_status=$?
   set -e
   case "$secret_scan_status" in

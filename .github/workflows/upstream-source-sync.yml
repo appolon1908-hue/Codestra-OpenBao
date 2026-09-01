@@ -29,6 +29,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Install checksum-verified fixture scanner
+        run: scripts/install_ci_tools.sh gitleaks
+
       - name: Import official upstream source snapshot
         shell: bash
         env:
@@ -105,7 +108,7 @@ jobs:
 
           export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA
           python3 - <<'PY'
-          import hashlib, json, os, re
+          import hashlib, json, os, re, subprocess, tempfile
           from datetime import datetime, timezone
           from pathlib import Path
 
@@ -151,13 +154,48 @@ jobs:
           # fixtures shipped in upstream OpenBao tests/docs. Codestra preserves
           # push protection and only neutralizes fixture material in explicitly
           # non-production source paths. Production/runtime logic is untouched.
+          # The pinned upstream tree contains one documentation alias. Codestra
+          # repositories reject symlinks during secret scanning, so materialize
+          # only this reviewed, in-tree alias and fail closed on any drift.
+          EXPECTED_UPSTREAM_SYMLINKS = {
+              Path('upstream/CLAUDE.md'): Path('AGENTS.md'),
+          }
+          discovered_symlinks = {
+              p: p.readlink()
+              for p in Path('upstream').rglob('*')
+              if p.is_symlink()
+          }
+          if discovered_symlinks != EXPECTED_UPSTREAM_SYMLINKS:
+              raise RuntimeError('unexpected upstream symlink set')
+          for path, target in EXPECTED_UPSTREAM_SYMLINKS.items():
+              resolved = (path.parent / target).resolve(strict=True)
+              upstream_root = Path('upstream').resolve(strict=True)
+              if upstream_root not in resolved.parents or not resolved.is_file():
+                  raise RuntimeError(f'unsafe upstream symlink target: {path}')
+              contents = resolved.read_bytes()
+              original_hash = hashlib.sha256(path.readlink().as_posix().encode()).hexdigest()
+              path.unlink()
+              path.write_bytes(contents)
+              record('materialize reviewed in-tree upstream documentation symlink', path, 1, [original_hash])
+
           fixture_parts={
               'test','tests','testdata','test-fixtures','fixtures','fixture',
-              'integrationtest','examples','example','docs','website','testhelpers'
+              'integrationtest','examples','example','docs','website','testhelpers',
+              'testing','mirage'
           }
 
+          def fixture_eligible(path):
+              rel=path.relative_to('upstream')
+              lower_parts={part.lower() for part in rel.parts}
+              lower_text=str(rel).lower()
+              return (
+                  bool(lower_parts & fixture_parts)
+                  or path.name.lower() == 'testing.go'
+                  or any(token in lower_text for token in ('_test.', '-test.', '/test_', '/tests_', '.md', '.mdx'))
+              )
+
           CLIENT_SECRET_ASSIGNMENT = re.compile(
-              r'''(?im)^(?P<prefix>[ \t]*(?P<key_quote>["']?)[A-Za-z0-9_]*client_secret(?P=key_quote)[ \t]*(?P<delimiter>[:=])[ \t]*)(?P<value_quote>["'])(?P<value>[^"'\r\n]*)(?P=value_quote)(?P<suffix>[ \t]*(?:[,#].*)?)$'''
+              r'''(?im)^(?P<prefix>[ \t]*(?:export[ \t]+)?(?P<key_quote>["']?)[A-Za-z0-9_]*client_secret(?P=key_quote)[ \t]*(?P<delimiter>[:=])[ \t]*)(?P<value_quote>["'])(?P<value>[^"'\r\n]*)(?P=value_quote)(?P<suffix>[ \t]*(?:[,#].*|\\)?)$'''
           )
 
           def sanitize_client_secret_assignment(match):
@@ -173,8 +211,9 @@ jobs:
           common_replacements=[
               # OpenBao/Vault token-shaped fixtures, including hmac token forms.
               (r'(?<![A-Za-z0-9])(?:hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}', 'OPENBAO_TOKEN_FIXTURE_INVALID', 0),
-              (r'(?<![A-Za-z0-9])s\.[A-Za-z0-9_-]{16,}', 'OPENBAO_LEGACY_TOKEN_FIXTURE_INVALID', 0),
+              (r'(?<![A-Za-z0-9])s\.[A-Za-z0-9_-]{24}(?![A-Za-z0-9_-])', 'OPENBAO_LEGACY_TOKEN_FIXTURE_INVALID', 0),
               (r'(?<![A-Za-z0-9])b\.[A-Za-z0-9_-]{64,}', 'OPENBAO_BATCH_TOKEN_FIXTURE_INVALID', 0),
+              (r'''(?i)(["']?Authorization["']?[ \t]*:[ \t]*["']?[ \t]*Bearer[ \t]+)[-A-Za-z0-9._~+/]{16,}=*''', r'\1<CODESTRA_BEARER_TOKEN_FIXTURE_INVALID>', 0),
               # AWS key-shaped examples not fully covered by the earlier pass.
               (r'(?:AKIA|ASIA)[0-9A-Z]{12,}', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
               (r'A3T_PROXY_TASK_TEST', 'AWS_ACCESS_KEY_ID_FIXTURE_INVALID', 0),
@@ -199,16 +238,14 @@ jobs:
               # Private-key blocks are only neutralized in fixture/docs paths.
               (r'-----BEGIN [^-\n]*PRIVATE KEY-----.*?-----END [^-\n]*PRIVATE KEY-----', 'PRIVATE_KEY_TEST_FIXTURE_REMOVED', re.DOTALL),
               (r'-----BEGIN PGP PRIVATE' + r' KEY BLOCK-----.*?-----END PGP PRIVATE' + r' KEY BLOCK-----', 'PGP_PRIVATE_KEY_TEST_FIXTURE_REMOVED', re.DOTALL),
+              (r'-----BEGIN (?:[A-Z0-9][A-Z0-9 -]{0,63} )?PRIVATE KEY(?: BLOCK)?-----', 'PRIVATE_KEY_TEST_FIXTURE_HEADER_REMOVED', 0),
           ]
 
           for p in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix()):
               if not p.is_file():
                   continue
               rel=p.relative_to('upstream')
-              lower_parts={part.lower() for part in rel.parts}
-              lower_text=str(rel).lower()
-              eligible=bool(lower_parts & fixture_parts) or any(token in lower_text for token in ('_test.', '-test.', '/test_', '/tests_', '.md', '.mdx'))
-              if not eligible:
+              if not fixture_eligible(p):
                   continue
               # Binary PKCS#12 test fixture cannot be safely preserved in a
               # secret-scanned Git mirror. Replace only the known test artifact.
@@ -234,6 +271,136 @@ jobs:
                   original_hash=hashlib.sha256(p.read_bytes()).hexdigest()
                   p.write_text('OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n')
                   record('replace known upstream private-key test fixture blocked by GitHub push protection',p,1,[original_hash])
+
+          # Run the exact pinned scanner used by required CI. Its default rules
+          # cover generic API keys and JWTs beyond the deterministic patterns
+          # above. Only fixture-eligible upstream paths may be rewritten. Exact
+          # runtime false positives remain byte-for-byte upstream and are bound
+          # by path plus line syntax in the reviewed .gitleaks.toml allowlists.
+          gitleaks_config=Path(
+              os.environ.get('CODESTRA_GITLEAKS_CONFIG', '.gitleaks.toml')
+          ).resolve(strict=True)
+          report_handle, report_name=tempfile.mkstemp(prefix='codestra-upstream-gitleaks-', suffix='.json')
+          os.close(report_handle)
+          report_path=Path(report_name)
+          try:
+              result=subprocess.run(
+                  [
+                      'gitleaks', 'dir', '.', '--no-banner',
+                      '--config', str(gitleaks_config),
+                      '--report-format', 'json', '--report-path', str(report_path),
+                  ],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.PIPE,
+                  text=True,
+                  check=False,
+              )
+              if result.returncode not in (0, 1):
+                  raise RuntimeError(f'gitleaks fixture scan failed with status {result.returncode}')
+              findings=json.loads(report_path.read_text() or '[]')
+          finally:
+              report_path.unlink(missing_ok=True)
+
+          supported_gitleaks_rules={
+              'curl-auth-header',
+              'generic-api-key',
+              'hashicorp-tf-password',
+              'jwt',
+          }
+          findings_by_path={}
+          workspace_root=Path.cwd().resolve(strict=True)
+          upstream_root=Path('upstream').resolve(strict=True)
+          for finding in findings:
+              rule=finding.get('RuleID')
+              secret=finding.get('Secret')
+              raw_path=Path(finding.get('File', ''))
+              path=(raw_path if raw_path.is_absolute() else workspace_root / raw_path).resolve(strict=True)
+              if rule not in supported_gitleaks_rules:
+                  raise RuntimeError(f'unreviewed upstream Gitleaks rule: {rule}')
+              if upstream_root not in path.parents or not fixture_eligible(path.relative_to(workspace_root)):
+                  raise RuntimeError(f'Gitleaks finding outside reviewed fixture paths: {path}')
+              if not isinstance(secret, str) or not secret:
+                  raise RuntimeError('Gitleaks finding omitted the matched fixture value')
+              findings_by_path.setdefault(path, []).append(finding)
+
+          for path, path_findings in sorted(findings_by_path.items(), key=lambda item: item[0].as_posix()):
+              text=path.read_text(encoding='utf-8', errors='surrogateescape')
+              hashes=[]
+              replacement_count=0
+              rules={finding['RuleID'] for finding in path_findings}
+
+              decoded_findings=[
+                  finding for finding in path_findings
+                  if 'decoded:base64' in (finding.get('Tags') or [])
+              ]
+              decoded_lines={}
+              for finding in decoded_findings:
+                  if finding['StartLine'] != finding['EndLine']:
+                      raise RuntimeError(f'multiline decoded Gitleaks fixture is unsupported: {path}')
+                  line_number=finding['StartLine']
+                  coordinates=(finding['StartColumn'], finding['EndColumn'])
+                  existing=decoded_lines.setdefault(line_number, coordinates)
+                  if existing != coordinates:
+                      raise RuntimeError(f'overlapping decoded Gitleaks fixtures are unsupported: {path}')
+
+              if decoded_lines:
+                  lines=text.splitlines(keepends=True)
+                  for line_number, (start_column, end_column) in sorted(decoded_lines.items(), reverse=True):
+                      line=lines[line_number - 1]
+                      start_index=start_column - 1
+                      left=max(line.rfind(quote, 0, start_index + 1) for quote in ('"', "'", '`'))
+                      if left < 0:
+                          raise RuntimeError(f'decoded Gitleaks fixture lacks an opening quote: {path}')
+                      quote=line[left]
+                      right=line.find(quote, max(end_column - 1, left + 1))
+                      if right < 0:
+                          raise RuntimeError(f'decoded Gitleaks fixture lacks a closing quote: {path}')
+                      encoded_fixture=line[left + 1:right]
+                      if len(encoded_fixture) < 16:
+                          raise RuntimeError(f'decoded Gitleaks fixture is unexpectedly short: {path}')
+                      hashes.append(hashlib.sha256(encoded_fixture.encode()).hexdigest())
+                      lines[line_number - 1]=(
+                          line[:left + 1]
+                          + '<CODESTRA_GITLEAKS_FIXTURE_INVALID>'
+                          + line[right:]
+                      )
+                      replacement_count += 1
+                  text=''.join(lines)
+
+              literal_secrets={
+                  finding['Secret']
+                  for finding in path_findings
+                  if 'decoded:base64' not in (finding.get('Tags') or [])
+              }
+              ordered_secrets=sorted(literal_secrets, key=lambda secret: (-len(secret), secret))
+              if any(secret not in text for secret in ordered_secrets):
+                  raise RuntimeError(f'Gitleaks fixture changed before sanitization: {path}')
+              if ordered_secrets:
+                  matcher=re.compile('|'.join(re.escape(secret) for secret in ordered_secrets))
+
+                  def replace_gitleaks_fixture(match):
+                      hashes.append(hashlib.sha256(match.group(0).encode()).hexdigest())
+                      return '<CODESTRA_GITLEAKS_FIXTURE_INVALID>'
+
+                  text,literal_replacement_count=matcher.subn(replace_gitleaks_fixture, text)
+                  replacement_count += literal_replacement_count
+              path.write_text(text, encoding='utf-8', errors='surrogateescape')
+              record(
+                  'neutralize pinned Gitleaks fixture rules: ' + ','.join(sorted(rules)),
+                  path,
+                  replacement_count,
+                  hashes,
+              )
+
+          verification=subprocess.run(
+              ['gitleaks', 'dir', '.', '--no-banner', '--redact', '--config', str(gitleaks_config)],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.PIPE,
+              text=True,
+              check=False,
+          )
+          if verification.returncode != 0:
+              raise RuntimeError('sanitized upstream tree did not pass Gitleaks verification')
 
           sanitization_manifest = {
               'schema_version': '1.0',

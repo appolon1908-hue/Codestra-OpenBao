@@ -243,7 +243,7 @@ class RepositorySecurityTests(unittest.TestCase):
                 "claims.codestra_environment == 'staging'\n"
                 + "blob."
                 + ("A" * 96)
-                + "\n"
+                + "\nreturn s.UnsealNamespaceWithContext(context.Background(), req)\n"
             )
             result = subprocess.run(
                 [scanner, directory], check=False, capture_output=True, text=True
@@ -262,6 +262,62 @@ class RepositorySecurityTests(unittest.TestCase):
             re.sub(pattern, "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID", fixture),
             "OPENBAO_BATCH_TOKEN_FIXTURE_INVALID",
         )
+
+    def test_upstream_testing_helpers_are_fixture_eligible(self) -> None:
+        self.assertIn("path.name.lower() == 'testing.go'", self.sync_source)
+        self.assertIn("'testing','mirage'", self.sync_source)
+
+    def test_upstream_symlink_set_is_exact_and_materialized(self) -> None:
+        self.assertIn(
+            "Path('upstream/CLAUDE.md'): Path('AGENTS.md')", self.sync_source
+        )
+        self.assertIn(
+            "if discovered_symlinks != EXPECTED_UPSTREAM_SYMLINKS", self.sync_source
+        )
+        self.assertIn("path.unlink()", self.sync_source)
+        self.assertIn("path.write_bytes(contents)", self.sync_source)
+
+    def test_upstream_standalone_private_key_headers_are_sanitized(self) -> None:
+        self.assertIn("PRIVATE_KEY_TEST_FIXTURE_HEADER_REMOVED", self.sync_source)
+
+    def test_upstream_bearer_fixtures_are_sanitized(self) -> None:
+        self.assertIn("<CODESTRA_BEARER_TOKEN_FIXTURE_INVALID>", self.sync_source)
+
+    def test_upstream_gitleaks_sanitization_is_fixture_only_and_verified(self) -> None:
+        self.assertIn("scripts/install_ci_tools.sh gitleaks", self.sync_source)
+        self.assertIn("'<CODESTRA_GITLEAKS_FIXTURE_INVALID>'", self.sync_source)
+        self.assertIn(
+            "Gitleaks finding outside reviewed fixture paths", self.sync_source
+        )
+        self.assertIn("matcher.subn(replace_gitleaks_fixture, text)", self.sync_source)
+        self.assertIn("'decoded:base64'", self.sync_source)
+        self.assertIn("decoded Gitleaks fixture lacks an opening quote", self.sync_source)
+        self.assertIn("if verification.returncode != 0", self.sync_source)
+
+    def test_client_secret_scanner_distinguishes_values_from_schema_blocks(self) -> None:
+        scanner = ROOT / "scripts/reject_repository_secrets.sh"
+        secret_key = "client_" + "secret"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fixture.txt"
+            path.write_text(f'oidc_{secret_key} = "test"\n')
+            rejected = subprocess.run(
+                [scanner, directory], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(rejected.returncode, 1)
+            path.write_text(f'{secret_key.upper()} = "test"\n')
+            rejected_upper = subprocess.run(
+                [scanner, directory], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(rejected_upper.returncode, 1)
+            path.write_text(
+                f'"oidc_{secret_key}": {{\n'
+                f'`json:"oidc_{secret_key}"`\n'
+                f'"oidc_{secret_key}": s.clientSecret,\n'
+            )
+            accepted = subprocess.run(
+                [scanner, directory], check=False, capture_output=True, text=True
+            )
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
 
     def test_client_secret_fixture_sanitization_preserves_supported_syntax(self) -> None:
         heredoc = self.sync_source.rsplit("python3 - <<'PY'\n", 1)[1].split(
@@ -300,6 +356,10 @@ class RepositorySecurityTests(unittest.TestCase):
         supported = {
             f'oidc_{secret_key} = "test"':
                 f'oidc_{secret_key} = "<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>"',
+            f'export {secret_key.upper()}="test"':
+                f'export {secret_key.upper()}="<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>"',
+            f'oidc_{secret_key}="test" \\':
+                f'oidc_{secret_key}="<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>" \\',
             f"{secret_key}: 'fixture' # kept":
                 f"{secret_key}: '<CODESTRA_CLIENT_SECRET_FIXTURE_INVALID>' # kept",
             f'  "{secret_key}": "fixture",':
