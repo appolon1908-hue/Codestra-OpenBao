@@ -134,6 +134,17 @@ class RepositorySecurityTests(unittest.TestCase):
                 ):
                     VALIDATOR.reject_protected_pushes(command)
 
+    def test_quoted_fragments_and_missing_approved_push_fail_closed(self) -> None:
+        safe = 'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"'
+        quoted = self.sync_source.replace(
+            safe, safe + "\n          g''it p''ush origin HEAD:refs/heads/main"
+        )
+        with self.assertRaisesRegex(ValueError, "protected_branch_sync_forbidden"):
+            VALIDATOR.validate_sync_workflow(quoted, yaml.safe_load(quoted))
+        missing = self.sync_source.replace(safe, "true")
+        with self.assertRaisesRegex(ValueError, "approved_sync_push_count_invalid"):
+            VALIDATOR.validate_sync_workflow(missing, yaml.safe_load(missing))
+
     def test_sync_branch_destination_is_immutable_and_fully_resolved(self) -> None:
         assignment = 'readonly SYNC_BRANCH="sync/openbao-upstream-${UPSTREAM_REF}"'
         self.assertIn(assignment, self.sync_source)
