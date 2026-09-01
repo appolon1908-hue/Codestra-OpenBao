@@ -62,7 +62,7 @@ remediation; they were absent from four branches at initial inventory.
 
 | PR | Head and exact SHA | Base | State at inventory | Disposition |
 | --- | --- | --- | --- | --- |
-| #19, production completion | `remediation/openbao-production-completion-v1` at `fdd5dbeb7edea2c1cd49f705fff2becbac8bc426` | `development` | open; exact-head validation in progress; independent review blocked on pending collaborator acceptance | canonical promotion PR; do not bypass its required checks or review |
+| #19, production completion | `remediation/openbao-production-completion-v1` at inventory evidence SHA `6bb2e306bd65e0f1219993d311b7092de9a99530` | `development` | open; all eleven required contexts passed on that exact head; independent review blocked on pending collaborator acceptance | canonical promotion PR; do not bypass its required checks or review |
 | #18, workload secret authority | `remediation/workload-secret-authority` at `7294d484825c7d661e8c4531d3c48cafd4966d70` | `main` | open; no CI check | superseded by reconciled implementation on the development-rooted remediation branch |
 | #17, protected source gates | `security/openbao-protected-source-gates-20260901` at `576e31af648a051f1d46d36e4558548b84337ba1` | `main` | open; ten new hardening commits appeared after initial reconciliation | superseded after selectively retaining its complete push-command parser, immutable sync-branch authority, expanded credential scanning and syntax-preserving fixture sanitation; obsolete main targeting, reduced workflow validation and removed provenance ledger were not imported |
 | #9, repository profile | `docs/repository-profile-v1` at `32f32f889b6fd7df36351e9ac3cde22d2006c79c` | `main` | draft; no CI check | reuse accurate text in the canonical profile; do not merge its stale workflow wholesale |
@@ -154,3 +154,9 @@ policies are installed. Required environment reviewers, variables, private
 runners and runtime execution evidence remain open until external access and
 promotion gates complete; this inventory does not retroactively mark them
 deployed.
+
+The exact-head evidence runs for `6bb2e306bd65e0f1219993d311b7092de9a99530`
+were validation `33556780393`, policy/integration `33556780392`, immutable
+image authority `33556780384`, and security `33556780373`. All eleven required
+`OpenBao / ...` contexts completed successfully. This records a point-in-time
+inventory result; later documentation commits must pass a fresh exact-head run.

@@ -4,7 +4,7 @@ Assessment date: 2026-09-01
 
 | Category | Status | Evidence |
 | --- | --- | --- |
-| Repository authority | WARNING | remediation is remote and protected promotion gates are installed; source is not yet promoted |
+| Repository authority | WARNING | remediation evidence SHA `6bb2e306bd65e0f1219993d311b7092de9a99530` passed all eleven exact-head required contexts; protected promotion is blocked on independent review and source is not yet promoted |
 | Upstream provenance | PASS | exact v2.6.2 tag commit and image identity verified |
 | Image immutability | PASS | desired source uses exact linux/amd64 manifest digest only |
 | SBOM | PASS | image and replay-plugin CycloneDX inventories regenerated and matched |
