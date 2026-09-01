@@ -38,6 +38,10 @@ class RecoveryContractTests(unittest.TestCase):
         self.assertIn("codestra-openbao-restore", workflow)
         self.assertNotIn("options: [development, test, staging, production]", workflow)
         self.assertIn("Upload only sanitized restore certification evidence", workflow)
+        self.assertGreaterEqual(workflow.count("scripts/verify_environment_approval.sh"), 2)
+        self.assertIn("OPENBAO_APPROVAL_ENVIRONMENT: openbao-${{ inputs.environment }}-backup", workflow)
+        self.assertIn("OPENBAO_APPROVAL_ENVIRONMENT: openbao-${{ inputs.environment }}-restore", workflow)
+        self.assertIn("git/ref/heads/${CODESTRA_ENVIRONMENT}", workflow)
 
     def test_production_backup_is_scheduled_and_never_artifacts_snapshot_data(self) -> None:
         workflow = (ROOT / ".github/workflows/scheduled-backup.yml").read_text()

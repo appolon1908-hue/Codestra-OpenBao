@@ -83,6 +83,7 @@ func main() {
 	now := time.Now().UTC()
 	tokens := map[string]string{
 		"valid": token(signer, now, nil),
+		"agentCompatible": token(signer, now, nil),
 		"concurrent": token(signer, now, nil),
 		"wrongIssuer": token(signer, now, map[string]any{"iss": "https://issuer.invalid/realm"}),
 		"wrongAudience": token(signer, now, map[string]any{"aud": []string{"wrong"}}),

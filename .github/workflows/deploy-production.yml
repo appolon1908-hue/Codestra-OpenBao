@@ -15,6 +15,10 @@ on:
         description: Reviewed saved-plan SHA-256
         required: true
         type: string
+      release_id:
+        description: Exact immutable signed production release ID
+        required: true
+        type: string
       confirmation:
         description: APPLY_EXACT_OPENBAO_PLAN_<source SHA>
         required: true
@@ -32,4 +36,5 @@ jobs:
       expected_source_sha: ${{ inputs.expected_source_sha }}
       plan_run_id: ${{ inputs.plan_run_id }}
       plan_sha256: ${{ inputs.plan_sha256 }}
+      release_id: ${{ inputs.release_id }}
       confirmation: ${{ inputs.confirmation }}

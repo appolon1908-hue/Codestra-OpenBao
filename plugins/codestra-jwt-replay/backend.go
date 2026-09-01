@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	pluginVersion = "v1.0.0"
+	pluginVersion = "v1.1.0"
 	usedPrefix    = "codestra-jti/used/"
 	expiryPrefix  = "codestra-jti/expiry/"
 	retentionSkew = int64(30)
@@ -62,6 +62,15 @@ func (b *backend) PluginVersion() logical.PluginVersion {
 	return logical.PluginVersion{Version: pluginVersion}
 }
 
+func canonicalLoginPath(path string) (string, bool) {
+	switch path {
+	case "login", "cel/login":
+		return "cel/login", true
+	default:
+		return path, false
+	}
+}
+
 func (b *backend) HandleRequest(ctx context.Context, req *logical.Request) (*logical.Response, error) {
 	if req.Operation == logical.RollbackOperation {
 		if err := cleanupExpired(ctx, req.Storage, time.Now().Unix(), cleanupLimit); err != nil {
@@ -70,9 +79,16 @@ func (b *backend) HandleRequest(ctx context.Context, req *logical.Request) (*log
 		return b.Backend.HandleRequest(ctx, req)
 	}
 
-	response, err := b.Backend.HandleRequest(ctx, req)
+	path, replayProtectedLogin := canonicalLoginPath(req.Path)
+	effectiveRequest := req
+	if path != req.Path {
+		copy := *req
+		copy.Path = path
+		effectiveRequest = &copy
+	}
+	response, err := b.Backend.HandleRequest(ctx, effectiveRequest)
 	if err != nil || response == nil || response.IsError() || response.Auth == nil ||
-		req.Operation != logical.UpdateOperation || req.Path != "cel/login" {
+		req.Operation != logical.UpdateOperation || !replayProtectedLogin {
 		return response, err
 	}
 

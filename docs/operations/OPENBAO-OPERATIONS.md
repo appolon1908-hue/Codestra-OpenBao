@@ -54,9 +54,14 @@ unsupported.
 ## Runtime image deployment
 
 Runtime installation is a separate protected workflow and never occurs inside
-saved-plan apply. `runtime-deploy.yml` accepts only the exact current
-environment SHA and the plugin artifact from a successful image-authority run
-whose `head_sha` matches. `scripts/deploy_runtime.sh` then:
+saved-plan apply. Outside production, `runtime-deploy.yml` accepts only the
+exact current environment SHA and plugin artifact from a successful
+image-authority run whose `head_sha` matches. Production instead requires the
+exact immutable GitHub release whose tag resolves to the current production
+SHA; it downloads all release assets, verifies the asset checksum and Sigstore
+workflow identity, validates the internal checksum manifest and release
+manifest, and takes the plugin only from that signed bundle.
+`scripts/deploy_runtime.sh` then:
 
 1. verifies runtime authority and the `@kazan555` environment approval;
 2. validates exact image/plugin digests, TLS/mTLS chains, SANs, certificate

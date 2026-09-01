@@ -62,7 +62,8 @@ docker run --detach --name "$container" \
   "$image" server -dev -dev-listen-address=0.0.0.0:8200 \
   -dev-plugin-dir=/openbao/plugins -config=/openbao/integration.hcl > /dev/null
 if ! port_output="$(docker port "$container" 8200/tcp 2>&1)"; then
-  docker logs "$container" >&2 || true
+  docker inspect --format='CONTAINER_STATUS={{.State.Status}} EXIT_CODE={{.State.ExitCode}}' \
+    "$container" >&2 || true
   printf '%s\n' "$port_output" >&2
   exit 1
 fi
@@ -129,13 +130,26 @@ bao_exec kv put codestra/staging/middleware/worker/email/probe payload=synthetic
 bao_exec kv put codestra/production/middleware/api/probe payload=synthetic-cross-environment >/dev/null
 
 login() {
-  local token_name="$1" response="$2" payload="$response_dir/login-payload.json"
+  login_path "$1" "$2" cel/login
+}
+
+login_path() {
+  local token_name="$1" response="$2" endpoint="$3" payload="$response_dir/login-payload.json"
   local jwt
   jwt="$(jq -r --arg name "$token_name" '.[$name]' "$token_dir/tokens.json")"
   jq -n --arg role "$role" --arg jwt "$jwt" '{role:$role,jwt:$jwt}' > "$payload"
   curl -sS -o "$response" -w '%{http_code}' -H 'Content-Type: application/json' \
-    --data-binary @"$payload" "$base/auth/${mount}/cel/login"
+    --data-binary @"$payload" "$base/auth/${mount}/${endpoint}"
 }
+
+code="$(login_path agentCompatible "$response_dir/agent-compatible.json" login)"
+[[ "$code" == 200 ]]
+jq -e --arg policy "$policy" '.auth.policies | index($policy) != null' \
+  "$response_dir/agent-compatible.json" >/dev/null
+code="$(login_path agentCompatible "$response_dir/agent-compatible-replay.json" cel/login)"
+[[ "$code" != 200 ]]
+jq -e '.errors == ["JWT replay rejected"]' \
+  "$response_dir/agent-compatible-replay.json" >/dev/null
 
 code="$(login valid "$response_dir/valid.json")"
 [[ "$code" == 200 ]]
@@ -219,6 +233,8 @@ jq -s -e '
 ' "$response_dir/openbao-integration-audit.jsonl" >/dev/null
 
 echo 'OPENBAO_JTI_PLUGIN_INTEGRATION=PASS'
+echo 'AGENT_STANDARD_LOGIN_COMPATIBILITY=PASS'
+echo 'AGENT_STANDARD_LOGIN_REPLAY=DENIED'
 echo 'JWT_TOKEN_TTL=300'
 echo 'JWT_SEQUENTIAL_REPLAY=DENIED'
 echo 'JWT_CONCURRENT_SUCCESS_COUNT=1'

@@ -44,6 +44,11 @@ def verify(operation: dict) -> None:
         item = mounts.get(name)
         if not item or item.get("type") != "kv" or (item.get("options") or {}).get("version") != "2":
             raise ValueError("secret_engine_readback_mismatch")
+    elif kind == "secret_engine_config":
+        actual = data(json_command("read", name))
+        keys = tuple(payload)
+        if selected(actual, keys) != selected(payload, keys):
+            raise ValueError("secret_engine_config_readback_mismatch:" + name)
     elif kind == "auth_method":
         auths = data(json_command("auth", "list"))
         item = auths.get(name)

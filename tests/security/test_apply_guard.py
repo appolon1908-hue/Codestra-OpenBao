@@ -24,6 +24,8 @@ class ApplyGuardTests(unittest.TestCase):
         source = (ROOT / "scripts/verify_environment_approval.sh").read_text(encoding="utf-8")
         self.assertIn("kazan555", source)
         self.assertIn("/approvals", source)
+        for suffix in ("runtime", "certify", "initialize", "backup", "restore"):
+            self.assertIn(f'openbao-${{environment}}-{suffix}', source)
 
 
 if __name__ == "__main__":

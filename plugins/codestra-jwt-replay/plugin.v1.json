@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "codestra-jwt-replay",
-  "version": "v1.0.0",
+  "version": "v1.1.0",
   "type": "auth",
   "command": "codestra-jwt-replay",
   "protocol": "OpenBao external plugin gRPC multiplex",
@@ -35,10 +35,12 @@
   "overlayGoModSha256": "a6ccef878874a581432d887e6bf61d4aee3cdb0ca46a40818aba1de77a47eb1c",
   "overlayGoSumSha256": "641809e4931de0a0899b8e98c4dc1fe954d1061d2e45054919bdfe8faece05bd",
   "platform": "linux/amd64",
-  "binarySha256": "609c33db8bcbedc8a3e37ed336efe635cb9ef00b6a633fa91f8f2fd08d2d1db3",
+  "binarySha256": "632fdf915a1fa00f479788824f3c2029c913ebfc6cd435a525676b683096fece",
   "reproducibleBuildsVerified": 4,
   "sequentialReplayTest": "PASS",
   "concurrentReplayTest": "PASS",
   "negativeClaimTests": "PASS",
+  "agentStandardLoginForcedThroughCel": true,
+  "agentStandardLoginReplayTest": "PASS",
   "runtimeApplyAuthorized": false
 }

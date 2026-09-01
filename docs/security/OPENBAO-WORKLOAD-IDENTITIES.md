@@ -11,12 +11,12 @@ prepared roles across four environments. All runtime bindings remain disabled.
 | `middleware-api` | middleware-platform | all | API-only integration credentials |
 | `middleware-worker` | middleware-platform | all | approved provider effect executor, split by provider family |
 | `n8n-automation` | automation-platform | all | Middleware client/orchestration credential only |
-| `odoo-integration` | business-systems | all | exact Odoo integration credential only |
-| `prometheus-openbao` | observability | all | authenticated metrics only; no general secret reads |
-| `klyrow-email-adapter` | Klyrow/email | staging, production | exact email adapter path; live effects remain disabled |
-| `telnexa-sms-adapter` | Telnexa/SMS | staging, production | exact SMS adapter path; live effects remain disabled |
-| `vicidial-adapter` | communications | staging, production | exact telephony adapter path; dialing remains disabled |
-| `crawler-adapter` | crawler platform | staging, production | exact crawler adapter path |
+| `odoo-integration` | business-integrations | all | exact Odoo integration credential only |
+| `prometheus-openbao` | observability-platform | all | authenticated metrics only; no general secret reads |
+| `klyrow-email-adapter` | klyrow-platform | staging, production | exact email adapter path; live effects remain disabled |
+| `telnexa-sms-adapter` | telnexa-platform | staging, production | exact SMS adapter path; live effects remain disabled |
+| `vicidial-adapter` | communications-platform | staging, production | exact telephony adapter path; dialing remains disabled |
+| `crawler-adapter` | kyqra-platform | staging, production | exact Kyqra crawler adapter path |
 
 An identity is admitted only when its owner, runtime consumer, exact Keycloak
 client, environment claim, paths, TTL, rotation procedure, revocation procedure

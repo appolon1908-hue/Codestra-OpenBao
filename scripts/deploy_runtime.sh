@@ -7,9 +7,10 @@ container="${OPENBAO_CONTAINER_NAME:?set reviewed container name}"
 runtime_root="${OPENBAO_RUNTIME_ROOT:?set protected runtime root}"
 data_dir="${OPENBAO_DATA_DIR:?set existing Raft data directory}"
 audit_dir="${OPENBAO_AUDIT_DIR:?set protected audit directory}"
-plugin_source="${OPENBAO_PLUGIN_BINARY:?set exact CI-built plugin binary}"
+plugin_source="${OPENBAO_PLUGIN_BINARY:?set exact verified plugin binary}"
 evidence="${OPENBAO_RUNTIME_DEPLOY_EVIDENCE:?set sanitized evidence path}"
 confirmation="${OPENBAO_RUNTIME_CONFIRMATION:-}"
+release_id="${OPENBAO_RELEASE_ID:-NOT_APPLICABLE}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
@@ -86,10 +87,25 @@ check_writable_directory "$audit_dir"
 scripts/verify_tls_material.sh
 
 expected_plugin_sha="$(jq -r .binarySha256 plugins/codestra-jwt-replay/plugin.v1.json)"
+expected_digest="$(jq -r .image_digest CODESTRA_UPSTREAM.json)"
 [[ "$(basename "$plugin_source")" == "$(jq -r .name plugins/codestra-jwt-replay/plugin.v1.json)" ]]
 [[ "$(sha256sum "$plugin_source" | awk '{print $1}')" == "$expected_plugin_sha" ]]
 
+release_bundle_sha=''
 if [[ "$environment" == production ]]; then
+  [[ "$release_id" =~ ^openbao-v[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}\.[0-9]+$ ]]
+  release_evidence="${OPENBAO_RELEASE_EVIDENCE:?production requires verified immutable release evidence}"
+  [[ -f "$release_evidence" && ! -L "$release_evidence" ]]
+  jq -e --arg releaseId "$release_id" --arg sourceSha "$source_sha" \
+    --arg imageDigest "$expected_digest" --arg pluginSha256 "$expected_plugin_sha" '
+    .schemaVersion == 1 and .releaseId == $releaseId and
+    .sourceSha == $sourceSha and .imageDigest == $imageDigest and
+    .pluginSha256 == $pluginSha256 and
+    .immutable == true and .checksumVerified == true and
+    .signatureVerified == true and .secretValuesIncluded == false
+  ' "$release_evidence" >/dev/null
+  release_bundle_sha="$(jq -r .bundleSha256 "$release_evidence")"
+  [[ "$release_bundle_sha" =~ ^[0-9a-f]{64}$ ]]
   backup_evidence="${OPENBAO_PRECHANGE_BACKUP_EVIDENCE:?production runtime deployment requires backup evidence}"
   jq -e '
     .schemaVersion == 1 and .environment == "production" and
@@ -126,7 +142,6 @@ else
 fi
 
 image="$(jq -r .image_reference CODESTRA_UPSTREAM.json)"
-expected_digest="$(jq -r .image_digest CODESTRA_UPSTREAM.json)"
 docker pull --platform linux/amd64 "$image" >/dev/null
 image_json="$(docker image inspect "$image")"
 jq -e --arg expected "ghcr.io/openbao/openbao@${expected_digest}" \
@@ -187,8 +202,9 @@ jq -n \
   --arg imageDigest "$expected_digest" --arg container "$container" \
   --arg previousContainer "$previous_container" --arg previousImageId "$previous_image" \
   --arg previousSourceSha "$previous_source" --arg pluginSha256 "$expected_plugin_sha" \
+  --arg releaseId "$release_id" --arg releaseBundleSha256 "$release_bundle_sha" \
   --arg deployedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  '{schemaVersion:1,environment:$environment,sourceSha:$sourceSha,imageDigest:$imageDigest,container:$container,previousContainerRetained:$previousContainer,previousImageId:$previousImageId,previousSourceSha:$previousSourceSha,pluginSha256:$pluginSha256,deployedAt:$deployedAt,raftDataDeleted:false,nativePortsPublished:0,readOnlyRoot:true,secretValuesIncluded:false,runtimeDeploy:"PASS"}' \
+  '{schemaVersion:1,environment:$environment,sourceSha:$sourceSha,imageDigest:$imageDigest,releaseId:$releaseId,releaseBundleSha256:$releaseBundleSha256,container:$container,previousContainerRetained:$previousContainer,previousImageId:$previousImageId,previousSourceSha:$previousSourceSha,pluginSha256:$pluginSha256,deployedAt:$deployedAt,raftDataDeleted:false,nativePortsPublished:0,readOnlyRoot:true,secretValuesIncluded:false,runtimeDeploy:"PASS"}' \
   > "$evidence"
 chmod 0400 "$evidence"
 

@@ -13,6 +13,8 @@ expected_environment="${OPENBAO_APPROVAL_ENVIRONMENT:-openbao-${environment}}"
    "$expected_environment" == "openbao-${environment}-runtime" || \
    "$expected_environment" == "openbao-${environment}-certify" || \
    "$expected_environment" == "openbao-${environment}-initialize" || \
+   "$expected_environment" == "openbao-${environment}-backup" || \
+   "$expected_environment" == "openbao-${environment}-restore" || \
    ( "$environment" == production && "$expected_environment" == openbao-release ) ]]
 approvals="$(gh api "repos/${repository}/actions/runs/${run_id}/approvals")"
 jq -e \

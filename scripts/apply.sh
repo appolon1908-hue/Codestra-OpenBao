@@ -12,6 +12,7 @@ for command in bao jq sha256sum gh; do command -v "$command" >/dev/null; done
 
 (cd "$(dirname "$plan")" && sha256sum -c "$(basename "$checksum")") >/dev/null
 source_sha="$(git rev-parse HEAD)"
+release_id="${OPENBAO_RELEASE_ID:-NOT_APPLICABLE}"
 [[ "$(jq -r '.planSourceSha' "$plan")" == "$source_sha" ]]
 [[ "$(jq -r '.environment' "$plan")" == "$environment" ]]
 [[ "$(jq -r '.planOnly' "$plan")" == true ]]
@@ -19,6 +20,11 @@ source_sha="$(git rev-parse HEAD)"
 [[ "$(jq '.warnings | length' "$plan")" == 0 ]]
 [[ "$(jq -r '.runtimeApplyAuthorized' "$plan")" == true ]]
 [[ -z "$(git status --porcelain)" ]]
+if [[ "$environment" == production ]]; then
+  [[ "$release_id" =~ ^openbao-v[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}\.[0-9]+$ ]]
+else
+  [[ "$release_id" == NOT_APPLICABLE ]]
+fi
 confirmation="${OPENBAO_APPLY_CONFIRMATION:-}"
 [[ "$confirmation" == "APPLY_EXACT_OPENBAO_PLAN_${source_sha}" ]]
 
@@ -124,10 +130,11 @@ plan_sha="$(awk '{print $1}' "$checksum")"
 jq -n \
   --arg environment "$environment" --arg sourceSha "$source_sha" \
   --arg planSha256 "$plan_sha" --arg startedAt "$started" --arg completedAt "$completed" \
+  --arg releaseId "$release_id" \
   --arg approvedBy kazan555 \
   --argjson createCount "$(jq '.counts.create' "$plan")" \
   --argjson changeCount "$(jq '.counts.change' "$plan")" \
-  '{schemaVersion:1,environment:$environment,sourceSha:$sourceSha,planSha256:$planSha256,startedAt:$startedAt,completedAt:$completedAt,approvedBy:$approvedBy,createCount:$createCount,changeCount:$changeCount,destroyCount:0,planAppliedExactly:true}' \
+  '{schemaVersion:1,environment:$environment,sourceSha:$sourceSha,releaseId:$releaseId,planSha256:$planSha256,startedAt:$startedAt,completedAt:$completedAt,approvedBy:$approvedBy,createCount:$createCount,changeCount:$changeCount,destroyCount:0,planAppliedExactly:true}' \
   > "$evidence"
 chmod 400 "$evidence"
 

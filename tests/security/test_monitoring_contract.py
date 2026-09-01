@@ -18,6 +18,9 @@ class MonitoringContractTests(unittest.TestCase):
         self.assertFalse(job["tls_config"]["insecure_skip_verify"])
         self.assertNotIn("bearer_token", job)
         self.assertEqual(job["static_configs"][0]["targets"], ["codestra-bao-production-01:8200"])
+        policy = (ROOT / "openbao/policies/production/prometheus-openbao.hcl").read_text()
+        self.assertIn('path "sys/metrics" {\n  capabilities = ["read"]', policy)
+        self.assertIn('path "sys/*" {\n  capabilities = ["deny"]', policy)
 
     def test_alerts_cover_required_failures_without_secret_labels(self) -> None:
         source = (ROOT / "monitoring/alerts/openbao-alerts.yml").read_text()

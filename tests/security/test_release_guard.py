@@ -41,6 +41,7 @@ class ReleaseGuardTests(unittest.TestCase):
             "immutable-releases", "gh release create", "--target", "--draft",
             "gh release upload", "--method PATCH", "-F draft=false",
             '.draft == true', 'all(startswith(\"sha256:\"))',
+            "cosign sign-blob", "cosign verify-blob", "refs/heads/production",
             ".immutable == true", "OPENBAO_IMMUTABLE_GITHUB_RELEASE=PASS",
         ):
             self.assertIn(required, source)

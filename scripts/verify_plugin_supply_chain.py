@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "plugins/codestra-jwt-replay/plugin.v1.json"
-SBOM = ROOT / "artifacts/supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json"
-REPORT = ROOT / "artifacts/supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json"
+SBOM = ROOT / "artifacts/supply-chain/codestra-jwt-replay-v1.1.0-linux-amd64.cdx.json"
+REPORT = ROOT / "artifacts/supply-chain/codestra-jwt-replay-v1.1.0-linux-amd64.trivy.json"
 
 
 def load(path: Path) -> dict:

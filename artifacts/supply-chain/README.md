@@ -5,7 +5,7 @@ executables:
 
 - the exact official OpenBao v2.6.2 linux/amd64 image digest, with CycloneDX
   SBOM, Trivy report, source identity and expiring VEX dispositions; and
-- the external `codestra-jwt-replay` v1.0.0 linux/amd64 binary, with CycloneDX
+- the external `codestra-jwt-replay` v1.1.0 linux/amd64 binary, with CycloneDX
   SBOM and Trivy report showing zero HIGH/CRITICAL observations.
 
 The plugin manifest locks its exact upstream SHA, patched Go toolchain,

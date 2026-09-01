@@ -17,6 +17,12 @@ class SavedPlanWorkflowTests(unittest.TestCase):
         self.assertNotIn("scripts/plan.sh", source)
         self.assertNotIn("docker compose up", source)
 
+        reusable = (ROOT / ".github/workflows/_deploy-saved-plan.yml").read_text(encoding="utf-8")
+        production = (ROOT / ".github/workflows/deploy-production.yml").read_text(encoding="utf-8")
+        for required in ("release_id", "commits/${RELEASE_ID}", ".immutable == true"):
+            self.assertIn(required, reusable)
+        self.assertIn("Exact immutable signed production release ID", production)
+
     def test_production_apply_proves_ssh_unchanged(self) -> None:
         source = (ROOT / "scripts/apply_saved_plan.sh").read_text(encoding="utf-8")
         self.assertGreaterEqual(source.count("scripts/capture_ssh_baseline.sh"), 2)

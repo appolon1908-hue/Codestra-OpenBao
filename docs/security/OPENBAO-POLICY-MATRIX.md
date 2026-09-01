@@ -15,7 +15,7 @@ other environments and system administration.
 | Klyrow adapter | `codestra/{env}/middleware/worker/email/klyrow/*` | all non-email and non-Klyrow paths |
 | Telnexa adapter | `codestra/{env}/middleware/worker/sms/telnexa/*` | all non-SMS and non-Telnexa paths |
 | VICIdial adapter | `codestra/{env}/middleware/worker/telephony/vicidial/*` | VICIdial administration and unrelated paths |
-| Crawler adapter | `codestra/{env}/middleware/worker/crawler/*` | other provider families |
+| Crawler adapter | `codestra/{env}/middleware/worker/crawler/kyqra/*` | other provider families and other crawler authorities |
 
 Generated policy files under `openbao/policies/` are deployment authority.
 `scripts/generate_workload_policies.py` must reproduce them byte-for-byte.

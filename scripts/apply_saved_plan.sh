@@ -20,6 +20,12 @@ done
 [[ "$(jq -r .planSourceSha "$plan")" == "$source_sha" ]]
 [[ "$(jq -r .environment "$plan")" == "$environment" ]]
 [[ "$(jq -r .counts.destroy "$plan")" == 0 ]]
+release_id="${OPENBAO_RELEASE_ID:-NOT_APPLICABLE}"
+if [[ "$environment" == production ]]; then
+  [[ "$release_id" =~ ^openbao-v[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}\.[0-9]+$ ]]
+else
+  [[ "$release_id" == NOT_APPLICABLE ]]
+fi
 
 umask 077
 mkdir -p "$evidence_dir"

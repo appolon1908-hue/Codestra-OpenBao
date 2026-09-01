@@ -48,6 +48,17 @@ class GeneratedPolicyTests(unittest.TestCase):
             for forbidden in ("email", "sms", "telephony", "advertising", "beyvra"):
                 self.assertNotIn(f"/{forbidden}/", source)
 
+    def test_only_prometheus_has_exact_metrics_read(self) -> None:
+        rendered, _ = MODULE.build(self.authority)
+        for role in self.authority["roles"]:
+            relative = Path(role["environment"]) / f"{role['serviceIdentity']}.hcl"
+            source = rendered[relative]
+            if role["serviceIdentity"] == "prometheus-openbao":
+                self.assertIn('path "sys/metrics" {\n  capabilities = ["read"]', source)
+            else:
+                self.assertNotIn('path "sys/metrics"', source)
+            self.assertIn('path "sys/*" {\n  capabilities = ["deny"]', source)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -33,6 +33,10 @@ path "codestra/metadata/staging/*" {
   capabilities = ["deny"]
 }
 
+path "sys/metrics" {
+  capabilities = ["read"]
+}
+
 path "auth/token/lookup-self" {
   capabilities = ["read"]
 }

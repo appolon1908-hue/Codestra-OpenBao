@@ -17,6 +17,8 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "JWT_CONCURRENT_SUCCESS_COUNT=",
             "JWT_CONCURRENT_DENY_COUNT=",
             "JWT_NEGATIVE_SECURITY=PASS",
+            "AGENT_STANDARD_LOGIN_COMPATIBILITY=PASS",
+            "AGENT_STANDARD_LOGIN_REPLAY=DENIED",
             "WORKLOAD_AUTHORIZED_PATH=PASS",
             "CROSS_SERVICE_ACCESS=DENIED",
             "CROSS_ENVIRONMENT_ACCESS=DENIED",
@@ -26,6 +28,7 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
             "ROOT_TOKEN_USAGE_DETECTION=PASS",
             "/v1/codestra/data/staging/middleware/worker/email/probe",
             '[[ "$code" == 307 ]]',
+            "login_path agentCompatible",
         ):
             self.assertIn(marker, replay)
         for negative in (
@@ -46,7 +49,8 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
         self.assertIn('audit "file" "integration-audit"', replay)
         self.assertIn('-config=/openbao/integration.hcl', replay)
         self.assertIn('audit list -format=json', replay)
-        self.assertIn('docker logs "$container"', replay)
+        self.assertIn("CONTAINER_STATUS={{.State.Status}} EXIT_CODE={{.State.ExitCode}}", replay)
+        self.assertNotIn('docker logs "$container"', replay)
         self.assertNotIn('--detach --rm', replay)
         self.assertNotIn('audit enable', replay)
         self.assertNotIn('unsafe_allow_api_audit_creation', replay)

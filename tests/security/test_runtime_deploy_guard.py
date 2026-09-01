@@ -15,6 +15,9 @@ class RuntimeDeployGuardTests(unittest.TestCase):
             ".runtimeApplyAuthorized",
             "verify_environment_approval.sh",
             "OPENBAO_PRECHANGE_BACKUP_EVIDENCE",
+            "OPENBAO_RELEASE_EVIDENCE",
+            "signatureVerified",
+            "releaseBundleSha256",
             "docker pull --platform linux/amd64",
             "--no-build --pull never",
             "previous_container",
@@ -49,6 +52,12 @@ class RuntimeDeployGuardTests(unittest.TestCase):
         self.assertIn("Production is not initialized", workflow)
         self.assertIn("persist-credentials: false", workflow)
         self.assertIn("OPENBAO_SERVER_CA_FILE", workflow)
+        for required in (
+            "gh release download", "cosign verify-blob", "commits/${RELEASE_ID}",
+            ".immutable == true", "release-manifest.json", "OPENBAO_RELEASE_EVIDENCE",
+            "providerBusinessEffectsEnabled == false",
+        ):
+            self.assertIn(required, workflow)
 
     def test_tls_material_guard_verifies_chains_names_dates_and_keys(self) -> None:
         source = (ROOT / "scripts/verify_tls_material.sh").read_text(encoding="utf-8")

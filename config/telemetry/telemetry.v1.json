@@ -6,7 +6,7 @@
   "disableHostname": true,
   "unauthenticatedMetricsAccess": false,
   "privateObservabilityNetworkRequired": true,
-  "metricsPolicy": "openbao-prometheus",
+  "metricsPolicy": "workload-prometheus-openbao-{environment}",
   "secretLabelsAllowed": false,
   "requiredSignals": [
     "initialized", "sealed", "active", "standby", "leader", "raft_peer_count",

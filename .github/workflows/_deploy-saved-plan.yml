@@ -18,6 +18,10 @@ on:
       confirmation:
         required: true
         type: string
+      release_id:
+        required: false
+        default: NOT_APPLICABLE
+        type: string
 
 permissions:
   actions: read
@@ -34,6 +38,7 @@ jobs:
       CODESTRA_SOURCE_SHA: ${{ inputs.expected_source_sha }}
       OPENBAO_EXPECTED_PLAN_SHA256: ${{ inputs.plan_sha256 }}
       OPENBAO_APPLY_CONFIRMATION: ${{ inputs.confirmation }}
+      OPENBAO_RELEASE_ID: ${{ inputs.release_id }}
       BAO_ADDR: ${{ vars.OPENBAO_ADDR }}
       BAO_CACERT: ${{ vars.OPENBAO_CA_CERT_PATH }}
       BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
@@ -61,6 +66,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
         run: |
           [[ "$CODESTRA_ENVIRONMENT" =~ ^(development|test|staging|production)$ ]]
           [[ "$CODESTRA_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -70,6 +76,19 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$CODESTRA_SOURCE_SHA" ]]
           branch_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CODESTRA_ENVIRONMENT}" --jq .object.sha)"
           [[ "$branch_sha" == "$CODESTRA_SOURCE_SHA" ]]
+          if [[ "$CODESTRA_ENVIRONMENT" == production ]]; then
+            [[ "$RELEASE_ID" =~ ^openbao-v[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}\.[0-9]+$ ]]
+            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_ID}" --jq .sha)" == "$CODESTRA_SOURCE_SHA" ]]
+            release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_ID}")"
+            jq -e --arg tag "$RELEASE_ID" '
+              .tag_name == $tag and .draft == false and .prerelease == false and
+              .immutable == true and
+              ([.assets[].name] | sort) == ([$tag + ".sigstore.json", $tag + ".tar.gz", $tag + ".tar.gz.sha256"] | sort) and
+              ([.assets[].digest] | all(startswith("sha256:")))
+            ' <<<"$release" >/dev/null
+          else
+            [[ "$RELEASE_ID" == NOT_APPLICABLE ]]
+          fi
           test -z "$(git status --porcelain)"
       - name: Download only the exact reviewed plan run artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0

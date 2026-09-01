@@ -81,15 +81,15 @@ jobs:
             scripts/build_jti_plugin.sh
           mkdir -p "$release_dir/package/supply-chain"
           install -m 0444 \
-            artifacts/supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json \
-            artifacts/supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json \
+            artifacts/supply-chain/codestra-jwt-replay-v1.1.0-linux-amd64.cdx.json \
+            artifacts/supply-chain/codestra-jwt-replay-v1.1.0-linux-amd64.trivy.json \
             "$release_dir/package/supply-chain/"
           git archive --format=tar --output="$release_dir/package/source.tar" "$EXPECTED_SOURCE_SHA"
           (cd "$release_dir/package" && sha256sum \
             release-manifest.json source.tar \
             plugins/codestra-jwt-replay plugins/codestra-jwt-replay.sha256 \
-            supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json \
-            supply-chain/codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json > SHA256SUMS)
+            supply-chain/codestra-jwt-replay-v1.1.0-linux-amd64.cdx.json \
+            supply-chain/codestra-jwt-replay-v1.1.0-linux-amd64.trivy.json > SHA256SUMS)
           source_epoch="$(git show -s --format=%ct "$EXPECTED_SOURCE_SHA")"
           tar --sort=name --mtime="@${source_epoch}" --owner=0 --group=0 --numeric-owner \
             -C "$release_dir/package" -czf "$release_dir/${RELEASE_ID}.tar.gz" \
@@ -104,6 +104,11 @@ jobs:
           cosign sign-blob --yes \
             --bundle "$RUNNER_TEMP/release/${RELEASE_ID}.sigstore.json" \
             "$RUNNER_TEMP/release/${RELEASE_ID}.tar.gz"
+          cosign verify-blob \
+            --bundle "$RUNNER_TEMP/release/${RELEASE_ID}.sigstore.json" \
+            --certificate-identity "https://github.com/appolon1908-hue/Codestra-OpenBao/.github/workflows/release.yml@refs/heads/production" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$RUNNER_TEMP/release/${RELEASE_ID}.tar.gz" >/dev/null
       - name: Attest exact release provenance
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
         with:
@@ -149,7 +154,7 @@ jobs:
           [[ "$draft_release_id" =~ ^[0-9]+$ ]]
           gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${draft_release_id}" \
             -F draft=false >/dev/null
-          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_ID}" --jq .object.sha)" == "$EXPECTED_SOURCE_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_ID}" --jq .sha)" == "$EXPECTED_SOURCE_SHA" ]]
           release="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_ID}")"
           jq -e --arg tag "$RELEASE_ID" '
             .tag_name == $tag and .draft == false and .prerelease == false and

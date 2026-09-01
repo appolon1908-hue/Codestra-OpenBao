@@ -48,7 +48,7 @@
       "serviceIdentity": "prometheus-openbao",
       "policyName": "workload-prometheus-openbao-development",
       "path": "openbao/policies/development/prometheus-openbao.hcl",
-      "sha256": "365a7999ef9a61efb6d5038344107bba69c1d5b009c1664c8d67008ee04f5e73",
+      "sha256": "d0c65da71c22e3bef012ad087a8db2164f79eed81704d9b8d477f945b1f18630",
       "runtimeApplyAuthorized": false
     },
     {
@@ -112,7 +112,7 @@
       "serviceIdentity": "prometheus-openbao",
       "policyName": "workload-prometheus-openbao-production",
       "path": "openbao/policies/production/prometheus-openbao.hcl",
-      "sha256": "68853f93f9687d5479db5a56401beecc001e71c2c633c89848835c2c2255ae06",
+      "sha256": "8aaa51e0349903fa3be4ae40279ddaa4bd41941cc94842e748a2b090d8efeb9b",
       "runtimeApplyAuthorized": false
     },
     {
@@ -192,7 +192,7 @@
       "serviceIdentity": "prometheus-openbao",
       "policyName": "workload-prometheus-openbao-staging",
       "path": "openbao/policies/staging/prometheus-openbao.hcl",
-      "sha256": "0a6abbb24f0deb0c799a88bf632fc25ccdbf9cf7949b0cd7e1b8813af6cd9041",
+      "sha256": "21401dc4f3b23a832adfa9971c50c300cf507f993f8d926bbf4c917f59c66721",
       "runtimeApplyAuthorized": false
     },
     {
@@ -256,7 +256,7 @@
       "serviceIdentity": "prometheus-openbao",
       "policyName": "workload-prometheus-openbao-test",
       "path": "openbao/policies/test/prometheus-openbao.hcl",
-      "sha256": "a1fbbc0cf0c923e9f7cb67558b4beaa807eab9027b5c2b73f048eba93049119e",
+      "sha256": "1bec613e15205620d57cee0fe324d0f956ad54e1cace4e95678f240791f1f862",
       "runtimeApplyAuthorized": false
     }
   ]

@@ -147,10 +147,10 @@ def build(expected_source_sha: str, evidence_dir: Path) -> dict:
         "vulnerabilityReportSha256": file_sha(supply / "openbao-2.6.2-linux-amd64.trivy.json"),
         "vexSha256": file_sha(supply / "openbao-2.6.2-linux-amd64.vex.json"),
         "authPluginSbomSha256": file_sha(
-            supply / "codestra-jwt-replay-v1.0.0-linux-amd64.cdx.json"
+            supply / "codestra-jwt-replay-v1.1.0-linux-amd64.cdx.json"
         ),
         "authPluginVulnerabilityReportSha256": file_sha(
-            supply / "codestra-jwt-replay-v1.0.0-linux-amd64.trivy.json"
+            supply / "codestra-jwt-replay-v1.1.0-linux-amd64.trivy.json"
         ),
         "certificationEvidenceSha256": {
             name: file_sha(evidence_dir / CERTIFICATION_FILES[name]) for name in evidence

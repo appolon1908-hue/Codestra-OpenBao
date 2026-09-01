@@ -18,6 +18,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -35,6 +36,8 @@ jobs:
       checksum: ${{ steps.snapshot.outputs.checksum }}
     env:
       CODESTRA_ENVIRONMENT: ${{ inputs.environment }}
+      CODESTRA_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      OPENBAO_APPROVAL_ENVIRONMENT: openbao-${{ inputs.environment }}-backup
       BAO_ADDR: ${{ vars.OPENBAO_ADDR }}
       BAO_CACERT: ${{ vars.OPENBAO_CA_CERT_PATH }}
       BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
@@ -53,9 +56,13 @@ jobs:
           persist-credentials: false
       - name: Take, encrypt, verify and copy immutable snapshot off-host
         id: snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           export OPENBAO_BACKUP_EVIDENCE="$RUNNER_TEMP/backup-evidence.json"
-          [[ "$(git rev-parse HEAD)" == "${{ inputs.expected_source_sha }}" ]]
+          [[ "$(git rev-parse HEAD)" == "$CODESTRA_SOURCE_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CODESTRA_ENVIRONMENT}" --jq .object.sha)" == "$CODESTRA_SOURCE_SHA" ]]
+          scripts/verify_environment_approval.sh
           export BAO_TOKEN="$(< "$OPENBAO_OPERATOR_TOKEN_FILE")"
           result="$(scripts/backup.sh)"
           unset BAO_TOKEN
@@ -81,7 +88,9 @@ jobs:
     runs-on: [self-hosted, linux, x64, codestra-openbao-restore]
     timeout-minutes: 90
     env:
-      CODESTRA_ENVIRONMENT: ${{ inputs.environment }}-restore
+      CODESTRA_ENVIRONMENT: ${{ inputs.environment }}
+      CODESTRA_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      OPENBAO_APPROVAL_ENVIRONMENT: openbao-${{ inputs.environment }}-restore
       BAO_ADDR: ${{ vars.OPENBAO_ADDR }}
       BAO_CACERT: ${{ vars.OPENBAO_CA_CERT_PATH }}
       BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
@@ -100,6 +109,14 @@ jobs:
         with:
           ref: ${{ inputs.expected_source_sha }}
           persist-credentials: false
+          fetch-depth: 0
+      - name: Verify exact source and protected restore approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$CODESTRA_SOURCE_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CODESTRA_ENVIRONMENT}" --jq .object.sha)" == "$CODESTRA_SOURCE_SHA" ]]
+          scripts/verify_environment_approval.sh
       - name: Retrieve encrypted snapshot directly from protected off-host storage
         env:
           SNAPSHOT_NAME: ${{ needs.backup.outputs.artifact }}

@@ -56,6 +56,26 @@ func TestParseClaims(t *testing.T) {
 	}
 }
 
+func TestStandardAgentLoginIsForcedThroughCEL(t *testing.T) {
+	for _, test := range []struct {
+		input    string
+		expected string
+		login    bool
+	}{
+		{"login", "cel/login", true},
+		{"cel/login", "cel/login", true},
+		{"oidc/callback", "oidc/callback", false},
+	} {
+		actual, replayProtected := canonicalLoginPath(test.input)
+		if actual != test.expected || replayProtected != test.login {
+			t.Fatalf(
+				"canonicalLoginPath(%q) = %q,%v; want %q,%v",
+				test.input, actual, replayProtected, test.expected, test.login,
+			)
+		}
+	}
+}
+
 func TestSequentialReplayIsDenied(t *testing.T) {
 	store := storage(t)
 	if err := claimJTI(t.Context(), store, claims("same-jti", 1300), 1000); err != nil {

@@ -17,6 +17,8 @@ class JtiPluginSourceTests(unittest.TestCase):
             "logical.StartTxStorage",
             "logical.EndTxStorage",
             "physical.ErrTransactionCommitFailure",
+            'case "login", "cel/login":',
+            'copy.Path = path',
             'logical.ErrorResponse("JWT replay rejected")',
         ):
             self.assertIn(required, source)
@@ -30,7 +32,7 @@ class JtiPluginSourceTests(unittest.TestCase):
         self.assertEqual(manifest["upstreamSha"], "dd9c19c37a878cf4a81b18efb8d6f0599c7da923")
         self.assertEqual(
             manifest["binarySha256"],
-            "609c33db8bcbedc8a3e37ed336efe635cb9ef00b6a633fa91f8f2fd08d2d1db3",
+            "632fdf915a1fa00f479788824f3c2029c913ebfc6cd435a525676b683096fece",
         )
         self.assertEqual(manifest["goVersion"], "1.25.13")
         self.assertEqual(manifest["securityDependencyOverride"]["version"], "v0.55.0")
@@ -38,6 +40,8 @@ class JtiPluginSourceTests(unittest.TestCase):
         self.assertEqual(manifest["sequentialReplayTest"], "PASS")
         self.assertEqual(manifest["concurrentReplayTest"], "PASS")
         self.assertEqual(manifest["negativeClaimTests"], "PASS")
+        self.assertTrue(manifest["agentStandardLoginForcedThroughCel"])
+        self.assertEqual(manifest["agentStandardLoginReplayTest"], "PASS")
         self.assertFalse(manifest["runtimeApplyAuthorized"])
 
 

@@ -51,6 +51,15 @@ def policy_source(role: dict) -> str:
                 "",
             ]
         )
+    if identity == "prometheus-openbao":
+        lines.extend(
+            [
+                'path "sys/metrics" {',
+                '  capabilities = ["read"]',
+                "}",
+                "",
+            ]
+        )
     lines.extend(
         [
             'path "auth/token/lookup-self" {',
