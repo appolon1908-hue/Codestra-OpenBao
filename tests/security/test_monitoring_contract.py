@@ -31,6 +31,10 @@ class MonitoringContractTests(unittest.TestCase):
             "OpenBaoExcessiveTokenCreation", "OpenBaoCredentialNearExpiry",
             "OpenBaoRestartLoop",
         } <= names)
+        metrics_unavailable = next(
+            item for item in alerts if item["alert"] == "OpenBaoMetricsUnavailable"
+        )
+        self.assertIn('absent(up{job="codestra-openbao"})', metrics_unavailable["expr"])
         for forbidden in ("secret_value", "client_secret", "unseal_key"):
             self.assertNotIn(forbidden, source.lower())
 

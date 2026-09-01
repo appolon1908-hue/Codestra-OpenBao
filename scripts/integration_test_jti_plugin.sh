@@ -46,14 +46,19 @@ scripts/build_jti_plugin.sh
 install -m 0555 "$build_dir/$plugin" "$plugin_dir/$plugin"
 [[ "$(sha256sum "$plugin_dir/$plugin" | awk '{print $1}')" == "$expected_sha" ]]
 
-docker run --detach --rm --name "$container" \
+docker run --detach --name "$container" \
   --publish 127.0.0.1::8200 \
   --volume "$plugin_dir:/openbao/plugins:ro" \
   --volume "$work/integration.hcl:/openbao/integration.hcl:ro" \
   --env BAO_DEV_ROOT_TOKEN_ID=codestra-ci-root \
   "$image" server -dev -dev-listen-address=0.0.0.0:8200 \
   -dev-plugin-dir=/openbao/plugins -config=/openbao/integration.hcl > /dev/null
-port="$(docker port "$container" 8200/tcp | awk -F: 'NR == 1 {print $NF}')"
+if ! port_output="$(docker port "$container" 8200/tcp 2>&1)"; then
+  docker logs "$container" >&2 || true
+  printf '%s\n' "$port_output" >&2
+  exit 1
+fi
+port="$(awk -F: 'NR == 1 {print $NF}' <<<"$port_output")"
 [[ "$port" =~ ^[0-9]+$ ]]
 base="http://127.0.0.1:${port}/v1"
 header_name=X-Vault-Token

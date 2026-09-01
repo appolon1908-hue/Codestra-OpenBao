@@ -44,6 +44,8 @@ class RuntimeIntegrationContractTests(unittest.TestCase):
         self.assertIn('audit "file" "integration-audit"', replay)
         self.assertIn('-config=/openbao/integration.hcl', replay)
         self.assertIn('audit list -format=json', replay)
+        self.assertIn('docker logs "$container"', replay)
+        self.assertNotIn('--detach --rm', replay)
         self.assertNotIn('audit enable', replay)
         self.assertNotIn('unsafe_allow_api_audit_creation', replay)
 

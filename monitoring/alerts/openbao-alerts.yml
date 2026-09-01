@@ -2,7 +2,7 @@ groups:
   - name: codestra-openbao
     rules:
       - alert: OpenBaoMetricsUnavailable
-        expr: up{job="codestra-openbao"} != 1
+        expr: up{job="codestra-openbao"} != 1 or absent(up{job="codestra-openbao"})
         for: 2m
         labels:
           severity: critical
