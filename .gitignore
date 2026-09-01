@@ -20,4 +20,6 @@ raft-data/
 # Local tooling
 .tmp/
 .cache/
+__pycache__/
+*.pyc
 .DS_Store

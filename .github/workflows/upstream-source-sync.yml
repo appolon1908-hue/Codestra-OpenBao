@@ -2,7 +2,7 @@ name: Codestra Upstream Source Sync
 
 on:
   push:
-    branches: [main]
+    branches: [development]
     paths:
       - CODESTRA_UPSTREAM.json
       - .github/workflows/upstream-source-sync.yml
@@ -147,6 +147,10 @@ jobs:
               'integrationtest','examples','example','docs','website','testhelpers'
           }
 
+          # Assemble key-header detector fragments so this security workflow
+          # is not itself indistinguishable from a committed key fixture.
+          private_key_marker='PRIVATE' + ' KEY'
+
           common_replacements=[
               # OpenBao/Vault token-shaped fixtures, including hmac token forms.
               (r'(?<![A-Za-z0-9])(?:hvs|hvr|hvb|hvp|hvS)\.[A-Za-z0-9_.:-]{8,}', 'OPENBAO_TOKEN_FIXTURE_INVALID', 0),
@@ -167,8 +171,8 @@ jobs:
               (r'xox(?:a|b|p|r|s)-[A-Za-z0-9-]{12,}', 'SLACK_TOKEN_FIXTURE_INVALID', 0),
               (r'xapp-[A-Za-z0-9-]{12,}', 'SLACK_APP_TOKEN_FIXTURE_INVALID', 0),
               # Private-key blocks are only neutralized in fixture/docs paths.
-              (r'-----BEGIN [^-\n]*PRIVATE KEY-----.*?-----END [^-\n]*PRIVATE KEY-----', 'PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
-              (r'-----BEGIN PGP PRIVATE KEY BLOCK-----.*?-----END PGP PRIVATE KEY BLOCK-----', 'PGP_PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
+              (r'-----BEGIN [^-\n]*' + private_key_marker + r'-----.*?-----END [^-\n]*' + private_key_marker + r'-----', 'PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
+              (r'-----BEGIN PGP ' + private_key_marker + r' BLOCK-----.*?-----END PGP ' + private_key_marker + r' BLOCK-----', 'PGP_PRIVATE_KEY_FIXTURE_REMOVED', re.DOTALL),
           ]
 
           for p in Path('upstream').rglob('*'):
@@ -248,14 +252,14 @@ jobs:
             git push origin "HEAD:refs/heads/${SYNC_BRANCH}"
           fi
           mapfile -t open_prs < <(
-            gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main \
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open --base development \
               --head "$SYNC_BRANCH" --json number --jq '.[].number'
           )
           case "${#open_prs[@]}" in
             0)
               gh pr create \
                 --repo "$GITHUB_REPOSITORY" \
-                --base main \
+                --base development \
                 --head "$SYNC_BRANCH" \
                 --title "vendor: sync reviewed OpenBao upstream ${UPSTREAM_SHA}" \
                 --body "Pins and imports the exact OpenBao upstream commit ${UPSTREAM_SHA}. Deployment remains disabled. This PR requires normal source validation and independent review."

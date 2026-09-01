@@ -27,17 +27,40 @@ SANITIZED_SECRET_FIXTURES = {
         "OPENBAO_PRIVATE_KEY_TEST_FIXTURE_REMOVED_FOR_GITHUB_ARCHIVAL\n",
 }
 
+EXPECTED_UPSTREAM_SHA = "dd9c19c37a878cf4a81b18efb8d6f0599c7da923"
+EXPECTED_IMAGE_DIGEST = (
+    "sha256:e29524ba7c3f20d01f562c481e3eccbad6c91df45a2f2531433da4951e408cff"
+)
+
 
 def validate_upstream_authority(data: dict) -> None:
     expected = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "component": "OpenBao",
         "codestra_role": "principal-secrets-and-encryption-authority",
         "upstream_repository": "openbao/openbao",
         "upstream_clone_url": "https://github.com/openbao/openbao.git",
+        "upstream_version": "2.6.2",
+        "upstream_tag": "v2.6.2",
+        "upstream_release_url": "https://github.com/openbao/openbao/releases/tag/v2.6.2",
+        "image_registry": "ghcr.io/openbao/openbao",
+        "image_reference": f"ghcr.io/openbao/openbao@{EXPECTED_IMAGE_DIGEST}",
+        "image_index_digest": "sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641",
+        "image_digest": EXPECTED_IMAGE_DIGEST,
+        "image_architecture": "linux/amd64",
+        "source_identity_verified_at": "2026-09-01",
         "import_path": "upstream",
         "deployment_enabled": False,
         "secret_material_allowed_in_git": False,
+        "sanitized_fixture_manifest_required": True,
+        "direct_environment_push_allowed": False,
+        "branch_promotion": [
+            "development",
+            "test",
+            "staging",
+            "production",
+            "main",
+        ],
     }
     for key, value in expected.items():
         if data.get(key) != value:
@@ -45,6 +68,8 @@ def validate_upstream_authority(data: dict) -> None:
     upstream_ref = data.get("upstream_ref")
     if not isinstance(upstream_ref, str) or re.fullmatch(r"[0-9a-f]{40}", upstream_ref) is None:
         raise ValueError("upstream_ref_must_be_exact_commit")
+    if upstream_ref != EXPECTED_UPSTREAM_SHA:
+        raise ValueError("upstream_authority_drift:upstream_ref")
 
 
 def validate_sync_workflow(source: str, document: dict) -> None:
@@ -72,7 +97,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         'git push origin "HEAD:refs/heads/${SYNC_BRANCH}"',
         "gh pr create",
         'gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"',
-        "--base main",
+        "--base development",
         "Deployment remains disabled",
         "previous_lock.get('upstream_commit') == os.environ['UPSTREAM_SHA']",
         "synchronized_at = previous_lock.get('synchronized_at', synchronized_at)",
@@ -81,7 +106,7 @@ def validate_sync_workflow(source: str, document: dict) -> None:
         'git switch --create "$SYNC_BRANCH" --track',
         "(( existing_sync_branch == 1 )) || exit 0",
         "Existing sync branch differs from deterministic rebuild.",
-        'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main',
+        'gh pr list --repo "$GITHUB_REPOSITORY" --state open --base development',
         "Multiple open pull requests claim the sync branch.",
     )
     for token in required:

@@ -32,6 +32,11 @@ class RepositorySecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "upstream_ref_must_be_exact_commit"):
             VALIDATOR.validate_upstream_authority(self.upstream)
 
+    def test_upstream_image_authority_must_be_an_exact_digest(self) -> None:
+        self.upstream["image_reference"] = "ghcr.io/openbao/openbao:2.6.2"
+        with self.assertRaisesRegex(ValueError, "upstream_authority_drift:image_reference"):
+            VALIDATOR.validate_upstream_authority(self.upstream)
+
     def test_upstream_sync_opens_reviewed_pr_and_never_pushes_protected_branches(self) -> None:
         VALIDATOR.validate_sync_workflow(self.sync_source, self.sync_document)
         unsafe = self.sync_source.replace(
@@ -121,6 +126,26 @@ class RepositorySecurityTests(unittest.TestCase):
                 [scanner, root], check=False, capture_output=True, text=True
             )
             self.assertEqual(result.returncode, 1)
+            self.assertIn("upstream/tests/credentials.json", result.stderr)
+
+    def test_secret_scan_rejects_provider_tokens_and_private_keys(self) -> None:
+        scanner = ROOT / "scripts/reject_repository_secrets.sh"
+        cases = {
+            "github.txt": "gh" + "p_" + ("A" * 24),
+            "aws.txt": "AK" + "IA" + ("A" * 16),
+            "encrypted-key.txt": "-----BEGIN " + "ENCRYPTED PRIVATE KEY-----\n",
+            "dsa-key.txt": "-----BEGIN " + "DSA PRIVATE KEY-----\n",
+            "openbao-token.txt": "hv" + "s." + ("A" * 16),
+        }
+        for name, contents in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / name
+                path.write_text(contents)
+                result = subprocess.run(
+                    [scanner, directory], check=False, capture_output=True, text=True
+                )
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(name, result.stderr)
 
     def test_generated_sync_pr_explicitly_dispatches_validation(self) -> None:
         self.assertEqual(
