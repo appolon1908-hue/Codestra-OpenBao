@@ -294,6 +294,16 @@ class RepositorySecurityTests(unittest.TestCase):
         self.assertIn("decoded Gitleaks fixture lacks an opening quote", self.sync_source)
         self.assertIn("if verification.returncode != 0", self.sync_source)
 
+    def test_upstream_import_is_complete_and_manifest_bound(self) -> None:
+        self.assertIn(
+            'git -C .codestra-upstream-src ls-tree -r -z "$UPSTREAM_SHA"',
+            self.sync_source,
+        )
+        self.assertIn("git add -f -- upstream", self.sync_source)
+        self.assertIn("if baseline.keys() != imported.keys()", self.sync_source)
+        self.assertIn("if changed_paths != manifest_paths", self.sync_source)
+        self.assertIn("upstream provenance mismatch", self.sync_source)
+
     def test_client_secret_scanner_distinguishes_values_from_schema_blocks(self) -> None:
         scanner = ROOT / "scripts/reject_repository_secrets.sh"
         secret_key = "client_" + "secret"

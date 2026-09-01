@@ -103,16 +103,27 @@ jobs:
           git -C .codestra-upstream-src checkout --quiet --detach FETCH_HEAD
           UPSTREAM_SHA="$(git -C .codestra-upstream-src rev-parse HEAD)"
           [[ "$UPSTREAM_SHA" == "$UPSTREAM_REF" ]] || exit 2
+          UPSTREAM_BASELINE_TREE="$(mktemp)"
+          git -C .codestra-upstream-src ls-tree -r -z "$UPSTREAM_SHA" > "$UPSTREAM_BASELINE_TREE"
           rm -rf .codestra-upstream-src/.git
           mv .codestra-upstream-src "$IMPORT_PATH"
 
-          export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA
+          export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA UPSTREAM_BASELINE_TREE
           python3 - <<'PY'
           import hashlib, json, os, re, subprocess, tempfile
           from datetime import datetime, timezone
           from pathlib import Path
 
           sanitizations=[]
+          workspace_root=Path.cwd().resolve(strict=True)
+
+          def repository_path(path):
+              candidate=Path(path)
+              resolved=(candidate if candidate.is_absolute() else workspace_root / candidate).resolve(strict=False)
+              try:
+                  return resolved.relative_to(workspace_root).as_posix()
+              except ValueError as exc:
+                  raise RuntimeError(f'evidence path escapes repository: {path}') from exc
 
           def record(rule, path, replacements, hashes=None):
               if replacements:
@@ -120,7 +131,7 @@ jobs:
                       'rule': rule,
                       'files_changed': 1,
                       'replacements': replacements,
-                      'path': str(path),
+                      'path': repository_path(path),
                   }
                   if hashes:
                       item['original_block_sha256']=sorted(hashes)
@@ -308,7 +319,6 @@ jobs:
               'jwt',
           }
           findings_by_path={}
-          workspace_root=Path.cwd().resolve(strict=True)
           upstream_root=Path('upstream').resolve(strict=True)
           for finding in findings:
               rule=finding.get('RuleID')
@@ -411,6 +421,51 @@ jobs:
               'source_behavior_changed': 'test_and_documentation_fixtures_only',
               'sanitizations': sorted(sanitizations, key=lambda item: (item['path'], item['rule'])),
           }
+
+          # Prove the import is complete and that every byte or mode change
+          # from the exact pinned upstream tree has a sanitization record.
+          baseline={}
+          baseline_path=Path(os.environ['UPSTREAM_BASELINE_TREE'])
+          for entry in baseline_path.read_bytes().split(b'\0'):
+              if not entry:
+                  continue
+              metadata, raw_path=entry.split(b'\t', 1)
+              mode, kind, oid=metadata.decode().split()
+              if kind != 'blob':
+                  raise RuntimeError(f'unsupported upstream tree entry type: {kind}')
+              path='upstream/' + raw_path.decode('utf-8', errors='surrogateescape')
+              baseline[path]=(mode, oid)
+          baseline_path.unlink(missing_ok=True)
+
+          def git_blob_oid(contents):
+              header=f'blob {len(contents)}\0'.encode()
+              return hashlib.sha1(header + contents).hexdigest()
+
+          imported={}
+          for path in sorted(Path('upstream').rglob('*'), key=lambda item: item.as_posix()):
+              if path.is_symlink():
+                  contents=path.readlink().as_posix().encode()
+                  mode='120000'
+              elif path.is_file():
+                  contents=path.read_bytes()
+                  mode='100755' if path.stat().st_mode & 0o111 else '100644'
+              else:
+                  continue
+              imported[path.as_posix()]=(mode, git_blob_oid(contents))
+
+          if baseline.keys() != imported.keys():
+              missing=len(baseline.keys() - imported.keys())
+              extra=len(imported.keys() - baseline.keys())
+              raise RuntimeError(f'upstream import path mismatch: missing={missing},extra={extra}')
+          changed_paths={path for path in baseline if baseline[path] != imported[path]}
+          manifest_paths={item['path'] for item in sanitization_manifest['sanitizations']}
+          if changed_paths != manifest_paths:
+              unmanifested=len(changed_paths - manifest_paths)
+              unchanged_manifest=len(manifest_paths - changed_paths)
+              raise RuntimeError(
+                  f'upstream provenance mismatch: unmanifested={unmanifested},unchanged_manifest={unchanged_manifest}'
+              )
+
           Path('CODESTRA_UPSTREAM_SANITIZATION.json').write_text(
               json.dumps(sanitization_manifest, indent=2, sort_keys=True) + '\n'
           )
@@ -448,7 +503,8 @@ jobs:
           git config user.name 'codestra-upstream-sync'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           [[ "$SYNC_BRANCH" == "sync/openbao-upstream-${UPSTREAM_SHA}" ]]
-          git add -A upstream CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json
+          git add -f -- upstream
+          git add -- CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json
           if git diff --cached --quiet; then
             (( existing_sync_branch == 1 )) || exit 0
           else
