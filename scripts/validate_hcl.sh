@@ -42,6 +42,8 @@ chmod 755 "$verify_dir/plugins"
 
 set +e
 timeout --signal=TERM 8s docker run --rm --cap-drop ALL \
+  --user "$(id -u):$(id -g)" \
+  --entrypoint bao \
   --name codestra-openbao-config-verify \
   -v "$repo_root/openbao/openbao.hcl:/openbao/config/openbao.hcl:ro" \
   -v "$verify_dir/data:/openbao/data" \

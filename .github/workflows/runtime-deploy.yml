@@ -59,8 +59,6 @@ jobs:
       OPENBAO_AGE_IDENTITY_FILE: ${{ vars.OPENBAO_AGE_IDENTITY_FILE }}
       OPENBAO_OFFHOST_REMOTE: ${{ vars.OPENBAO_OFFHOST_REMOTE }}
       OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION: ${{ vars.OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION }}
-      OPENBAO_RUNTIME_DEPLOY_EVIDENCE: ${{ runner.temp }}/openbao-runtime-evidence/runtime-deploy.json
-      OPENBAO_PRECHANGE_BACKUP_EVIDENCE: ${{ runner.temp }}/openbao-runtime-evidence/prechange-backup.json
     steps:
       - name: Check out the exact protected environment source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -95,6 +93,9 @@ jobs:
       - name: Take an immediate backup whenever state exists
         run: |
           umask 077
+          export OPENBAO_RUNTIME_DEPLOY_EVIDENCE="$RUNNER_TEMP/openbao-runtime-evidence/runtime-deploy.json"
+          export OPENBAO_PRECHANGE_BACKUP_EVIDENCE="$RUNNER_TEMP/openbao-runtime-evidence/prechange-backup.json"
+          printf 'OPENBAO_RUNTIME_DEPLOY_EVIDENCE=%s\n' "$OPENBAO_RUNTIME_DEPLOY_EVIDENCE" >> "$GITHUB_ENV"
           mkdir -p "$(dirname "$OPENBAO_RUNTIME_DEPLOY_EVIDENCE")"
           if docker inspect "$OPENBAO_CONTAINER_NAME" >/dev/null 2>&1; then
             set +e

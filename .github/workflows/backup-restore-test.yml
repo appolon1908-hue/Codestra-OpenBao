@@ -45,7 +45,6 @@ jobs:
       OPENBAO_AGE_IDENTITY_FILE: ${{ vars.OPENBAO_AGE_IDENTITY_FILE }}
       OPENBAO_OFFHOST_REMOTE: ${{ vars.OPENBAO_OFFHOST_REMOTE }}
       OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION: ${{ vars.OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION }}
-      OPENBAO_BACKUP_EVIDENCE: ${{ runner.temp }}/backup-evidence.json
     steps:
       - name: Check out exact source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -55,6 +54,7 @@ jobs:
       - name: Take, encrypt, verify and copy immutable snapshot off-host
         id: snapshot
         run: |
+          export OPENBAO_BACKUP_EVIDENCE="$RUNNER_TEMP/backup-evidence.json"
           [[ "$(git rev-parse HEAD)" == "${{ inputs.expected_source_sha }}" ]]
           export BAO_TOKEN="$(< "$OPENBAO_OPERATOR_TOKEN_FILE")"
           result="$(scripts/backup.sh)"
@@ -94,7 +94,6 @@ jobs:
       OPENBAO_RESTORE_PROBE_PATH: ${{ vars.OPENBAO_RESTORE_PROBE_PATH }}
       OPENBAO_RESTORE_PROBE_FIELD: ${{ vars.OPENBAO_RESTORE_PROBE_FIELD }}
       OPENBAO_RESTORE_PROBE_SHA256: ${{ vars.OPENBAO_RESTORE_PROBE_SHA256 }}
-      OPENBAO_RESTORE_EVIDENCE: ${{ runner.temp }}/restore-evidence.json
     steps:
       - name: Check out exact source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -117,6 +116,7 @@ jobs:
           SNAPSHOT_NAME: ${{ needs.backup.outputs.artifact }}
           CHECKSUM_NAME: ${{ needs.backup.outputs.checksum }}
         run: |
+          export OPENBAO_RESTORE_EVIDENCE="$RUNNER_TEMP/restore-evidence.json"
           export BAO_TOKEN="$(< "$OPENBAO_OPERATOR_TOKEN_FILE")"
           export OPENBAO_RESTORE_ARTIFACT="$RUNNER_TEMP/restore-input/$SNAPSHOT_NAME"
           export OPENBAO_RESTORE_CHECKSUM="$RUNNER_TEMP/restore-input/$CHECKSUM_NAME"

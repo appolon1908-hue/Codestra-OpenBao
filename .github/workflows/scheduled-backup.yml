@@ -31,7 +31,6 @@ jobs:
       OPENBAO_AGE_IDENTITY_FILE: ${{ vars.OPENBAO_AGE_IDENTITY_FILE }}
       OPENBAO_OFFHOST_REMOTE: ${{ vars.OPENBAO_OFFHOST_REMOTE }}
       OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION: ${{ vars.OPENBAO_OFFHOST_IMMUTABILITY_ATTESTATION }}
-      OPENBAO_BACKUP_EVIDENCE: ${{ runner.temp }}/openbao-production-backup-evidence.json
     steps:
       - name: Check out exact production authority
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -43,6 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          export OPENBAO_BACKUP_EVIDENCE="$RUNNER_TEMP/openbao-production-backup-evidence.json"
           production_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/production" --jq .object.sha)"
           [[ "$(git rev-parse HEAD)" == "$production_sha" ]]
           [[ "$(jq -r .runtimeApplyAuthorized config/environments/production/environment.json)" == true ]]

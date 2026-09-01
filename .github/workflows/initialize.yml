@@ -43,7 +43,6 @@ jobs:
       BAO_CACERT: ${{ vars.OPENBAO_CA_CERT_PATH }}
       BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
       BAO_CLIENT_KEY: ${{ vars.OPENBAO_OPERATOR_KEY_PATH }}
-      OPENBAO_INITIALIZATION_EVIDENCE: ${{ runner.temp }}/openbao-initialization-evidence/initialization.json
     steps:
       - name: Check out exact protected source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -64,6 +63,7 @@ jobs:
           scripts/verify_environment_approval.sh
       - name: Initialize once without printing or artifacting custody material
         run: |
+          export OPENBAO_INITIALIZATION_EVIDENCE="$RUNNER_TEMP/openbao-initialization-evidence/initialization.json"
           scripts/initialize.sh
           set +e
           status="$(bao status -format=json)"

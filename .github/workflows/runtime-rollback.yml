@@ -52,8 +52,6 @@ jobs:
       OPENBAO_ROLLBACK_SOURCE_SHA: ${{ inputs.rollback_source_sha }}
       OPENBAO_ROLLBACK_IMAGE_DIGEST: ${{ inputs.rollback_image_digest }}
       OPENBAO_ROLLBACK_CONFIRMATION: ${{ inputs.confirmation }}
-      OPENBAO_ROLLBACK_EVIDENCE: ${{ runner.temp }}/openbao-rollback-evidence/rollback.json
-      OPENBAO_PRECHANGE_BACKUP_EVIDENCE: ${{ runner.temp }}/openbao-rollback-evidence/prechange-backup.json
       BAO_ADDR: ${{ vars.OPENBAO_ADDR }}
       BAO_CACERT: ${{ vars.OPENBAO_CA_CERT_PATH }}
       BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
@@ -75,6 +73,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          export OPENBAO_ROLLBACK_EVIDENCE="$RUNNER_TEMP/openbao-rollback-evidence/rollback.json"
+          export OPENBAO_PRECHANGE_BACKUP_EVIDENCE="$RUNNER_TEMP/openbao-rollback-evidence/prechange-backup.json"
+          printf 'OPENBAO_ROLLBACK_EVIDENCE=%s\n' "$OPENBAO_ROLLBACK_EVIDENCE" >> "$GITHUB_ENV"
           [[ "$(git rev-parse HEAD)" == "$CODESTRA_SOURCE_SHA" ]]
           [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CODESTRA_ENVIRONMENT}" --jq .object.sha)" == "$CODESTRA_SOURCE_SHA" ]]
           umask 077

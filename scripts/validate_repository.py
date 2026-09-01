@@ -158,6 +158,16 @@ def validate_workflow_security(path: Path, source: str, document: dict) -> None:
     for job_name, job in jobs.items():
         if not isinstance(job, dict):
             raise ValueError(f"workflow_job_invalid:{path.name}:{job_name}")
+        job_environment = job.get("env") or {}
+        if not isinstance(job_environment, dict):
+            raise ValueError(f"workflow_job_environment_invalid:{path.name}:{job_name}")
+        if any(
+            isinstance(value, str) and "${{ runner." in value
+            for value in job_environment.values()
+        ):
+            raise ValueError(
+                f"runner_context_unavailable_in_job_environment:{path.name}:{job_name}"
+            )
         steps = job.get("steps", [])
         if not isinstance(steps, list):
             raise ValueError(f"workflow_steps_invalid:{path.name}:{job_name}")

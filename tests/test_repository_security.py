@@ -69,6 +69,23 @@ class RepositorySecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checkout_credential_boundary_drift"):
             VALIDATOR.validate_workflow_security(validate_path, source, document)
 
+    def test_runner_context_is_not_used_in_job_level_environment(self) -> None:
+        path = ROOT / ".github/workflows/validate.yml"
+        source = path.read_text(encoding="utf-8")
+        document = yaml.safe_load(source)
+        document["jobs"]["configuration"].setdefault("env", {})["INVALID"] = (
+            "${{ runner.temp }}/evidence.json"
+        )
+        with self.assertRaisesRegex(
+            ValueError, "runner_context_unavailable_in_job_environment"
+        ):
+            VALIDATOR.validate_workflow_security(path, source, document)
+
+    def test_hcl_container_runs_as_the_calling_user(self) -> None:
+        source = (ROOT / "scripts/validate_hcl.sh").read_text(encoding="utf-8")
+        self.assertIn('--user "$(id -u):$(id -g)"', source)
+        self.assertIn("--entrypoint bao", source)
+
     def test_whitespace_gate_checks_the_committed_base_to_head_range(self) -> None:
         source = (ROOT / ".github/workflows/validate.yml").read_text()
         self.assertIn("fetch-depth: 0", source)

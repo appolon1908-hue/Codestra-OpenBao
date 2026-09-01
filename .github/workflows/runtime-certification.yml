@@ -69,7 +69,6 @@ jobs:
       OPENBAO_ROTATION_OLD_VERIFIER: ${{ vars.OPENBAO_ROTATION_OLD_VERIFIER }}
       OPENBAO_ROTATION_HEALTH_VERIFIER: ${{ vars.OPENBAO_ROTATION_HEALTH_VERIFIER }}
       OPENBAO_ROTATION_CONFIRMATION: ${{ inputs.rotation_confirmation }}
-      OPENBAO_ROTATION_EVIDENCE: ${{ runner.temp }}/openbao-certification/rotation.json
       OPENBAO_REVOCATION_IDENTITY: ${{ inputs.identity }}
       OPENBAO_REVOCATION_DRIVER: ${{ vars.OPENBAO_REVOCATION_DRIVER }}
       OPENBAO_REVOCATION_TARGET_DENY_VERIFIER: ${{ vars.OPENBAO_REVOCATION_TARGET_DENY_VERIFIER }}
@@ -77,7 +76,6 @@ jobs:
       OPENBAO_REVOCATION_CROSS_ENV_DENY_VERIFIER: ${{ vars.OPENBAO_REVOCATION_CROSS_ENV_DENY_VERIFIER }}
       OPENBAO_REVOCATION_AUDIT_VERIFIER: ${{ vars.OPENBAO_REVOCATION_AUDIT_VERIFIER }}
       OPENBAO_REVOCATION_CONFIRMATION: ${{ inputs.revocation_confirmation }}
-      OPENBAO_REVOCATION_EVIDENCE: ${{ runner.temp }}/openbao-certification/revocation.json
       OPENBAO_PROVIDER_EFFECTS_DISABLED_ACKNOWLEDGED: true
     steps:
       - name: Check out exact protected source
@@ -96,12 +94,15 @@ jobs:
       - name: Prove CAS rotation agent refresh old denial and health
         run: |
           umask 077
+          export OPENBAO_ROTATION_EVIDENCE="$RUNNER_TEMP/openbao-certification/rotation.json"
           mkdir -p "$(dirname "$OPENBAO_ROTATION_EVIDENCE")"
           export BAO_TOKEN="$(< "$OPENBAO_OPERATOR_TOKEN_FILE")"
           scripts/rotate-test.sh
           unset BAO_TOKEN
       - name: Prove targeted revocation isolation and audit alert
-        run: scripts/revoke-test.sh
+        run: |
+          export OPENBAO_REVOCATION_EVIDENCE="$RUNNER_TEMP/openbao-certification/revocation.json"
+          scripts/revoke-test.sh
       - name: Upload only sanitized certification evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
