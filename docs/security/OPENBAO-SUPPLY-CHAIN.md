@@ -20,13 +20,21 @@ Committed evidence includes:
 - source/image identity; and
 - `SHA256SUMS` for independent verification.
 
-The raw scan reports nine HIGH/CRITICAL observations. Five OpenBao observations
+The current raw scan reports ten HIGH/CRITICAL observations. Five OpenBao observations
 are version-comparison false positives caused by its embedded pseudo-version;
 the binary is v2.6.2, later than each fixed release. The OpenSSL observation is
 limited to QUIC server processing, which OpenBao does not enable. The archive
 finding is outside workload reach because external runtime plugin installation
 is prohibited. The SSH library finding is outside the execution path because
 OpenBao is not an SSH server and the SSH engine is prohibited.
+
+The image also contains grpc-go v1.82.1, affected by CVE-2026-84304. OpenBao
+does compile internal gRPC servers, so the code is not declared absent. The
+time-bounded disposition applies only because no Codestra OpenBao runtime is
+deployed or authorized, and release construction fails while runtime authority
+and environment certification remain false. It expires on 2026-09-09. Any
+runtime activation must first use grpc-go v1.83.1 or later, or replace this
+disposition with a new evidence-backed review.
 
 Every disposition has an expiration. `scripts/verify_vulnerability_gate.py`
 fails when a HIGH/CRITICAL observation is missing, a disposition expires, or
@@ -38,3 +46,4 @@ Primary upstream evidence:
 - <https://github.com/openbao/openbao/releases/tag/v2.6.2>
 - <https://github.com/openbao/openbao/security/advisories>
 - <https://openbao.org/docs/install/>
+- <https://github.com/grpc/grpc-go/security/advisories/GHSA-vp52-pcj8-j9qc>
