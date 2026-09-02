@@ -36,6 +36,11 @@ and environment certification remain false. It expires on 2026-09-09. Any
 runtime activation must first use grpc-go v1.83.1 or later, or replace this
 disposition with a new evidence-backed review.
 
+The separately built replay plugin is a gRPC server and receives no such VEX
+disposition. Its deterministic overlay upgrades grpc-go from v1.82.1 to
+v1.83.1; the regenerated binary, SBOM, vulnerability report and checksums show
+zero plugin High/Critical findings.
+
 Every disposition has an expiration. `scripts/verify_vulnerability_gate.py`
 fails when a HIGH/CRITICAL observation is missing, a disposition expires, or
 the image identity changes. There are no blanket ignores. A future scanner

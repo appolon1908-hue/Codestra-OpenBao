@@ -32,10 +32,20 @@ class JtiPluginSourceTests(unittest.TestCase):
         self.assertEqual(manifest["upstreamSha"], "dd9c19c37a878cf4a81b18efb8d6f0599c7da923")
         self.assertEqual(
             manifest["binarySha256"],
-            "632fdf915a1fa00f479788824f3c2029c913ebfc6cd435a525676b683096fece",
+            "332562de9c3f179b4598104cceb83c4cddf0896428df192697e7d91dc6651508",
         )
         self.assertEqual(manifest["goVersion"], "1.25.13")
-        self.assertEqual(manifest["securityDependencyOverride"]["version"], "v0.55.0")
+        overrides = {
+            override["module"]: override["version"]
+            for override in manifest["securityDependencyOverrides"]
+        }
+        self.assertEqual(
+            overrides,
+            {
+                "golang.org/x/crypto": "v0.55.0",
+                "google.golang.org/grpc": "v1.83.1",
+            },
+        )
         self.assertGreaterEqual(manifest["reproducibleBuildsVerified"], 2)
         self.assertEqual(manifest["sequentialReplayTest"], "PASS")
         self.assertEqual(manifest["concurrentReplayTest"], "PASS")
