@@ -40,18 +40,20 @@ chmod 777 "$verify_dir/data"
 mkdir "$verify_dir/plugins"
 chmod 755 "$verify_dir/plugins"
 
-# Pull the exact immutable image before the bounded server-start probe. Placing
-# a first-time network pull inside the eight-second probe made a slow registry
-# response indistinguishable from invalid OpenBao configuration.
-set +e
-timeout --signal=TERM 120s docker pull --platform linux/amd64 "$image" \
-  >"$verify_dir/image-pull.log" 2>&1
-pull_status=$?
-set -e
-if (( pull_status != 0 )); then
-  echo "OpenBao image pull failed with status ${pull_status}." >&2
-  sed -n '1,80p' "$verify_dir/image-pull.log" >&2
-  exit "$pull_status"
+# Reuse the exact digest-pinned local image when available. Only a cache miss
+# may contact the registry, and that network operation is bounded separately
+# from the eight-second OpenBao startup probe.
+if ! docker image inspect "$image" >/dev/null 2>&1; then
+  set +e
+  timeout --signal=TERM 120s docker pull --platform linux/amd64 "$image" \
+    >"$verify_dir/image-pull.log" 2>&1
+  pull_status=$?
+  set -e
+  if (( pull_status != 0 )); then
+    echo "OpenBao image pull failed with status ${pull_status}." >&2
+    tail -n 80 "$verify_dir/image-pull.log" >&2
+    exit "$pull_status"
+  fi
 fi
 docker image inspect "$image" >/dev/null
 
@@ -73,12 +75,12 @@ server_status=$?
 set -e
 if [[ "$server_status" != 124 && "$server_status" != 143 ]]; then
   echo "OpenBao server configuration validation failed with status ${server_status}." >&2
-  sed -n '1,80p' "$verify_dir/server.log" >&2
+  tail -n 80 "$verify_dir/server.log" >&2
   exit "$server_status"
 fi
 if ! grep -q 'OpenBao server started' "$verify_dir/server.log"; then
   echo "OpenBao server did not reach the started state inside the bounded probe." >&2
-  sed -n '1,80p' "$verify_dir/server.log" >&2
+  tail -n 80 "$verify_dir/server.log" >&2
   exit 1
 fi
 
@@ -87,7 +89,10 @@ chmod 777 "$verify_dir/policies"
 cp -R "$repo_root/openbao/policies/." "$verify_dir/policies/"
 find "$verify_dir/policies" -type d -exec chmod 777 {} +
 find "$verify_dir/policies" -type f -exec chmod 666 {} +
-docker run --rm --pull=never --platform linux/amd64 --user root --entrypoint sh \
+docker run --rm --pull=never --platform linux/amd64 \
+  --cap-drop ALL \
+  --user "$(id -u):$(id -g)" \
+  --entrypoint sh \
   -v "$verify_dir/policies:/policies" "$image" -Eeuc '
     find /policies -type f -name "*.hcl" -print0 |
       while IFS= read -r -d "" policy; do bao policy fmt "$policy" >/dev/null; done
