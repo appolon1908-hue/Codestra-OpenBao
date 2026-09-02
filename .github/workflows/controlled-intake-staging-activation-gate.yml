@@ -123,6 +123,7 @@ jobs:
           evidence = data["staging_evidence"]
           assert evidence["collector_repository"] == "appolon1908-hue/Codestra-Prometheus"
           assert evidence["collector_branch"] == "development"
+          assert evidence["collector_source_sha"] == "c41d50bf579d39021c2f81114dd6ad358c483b83"
           assert evidence["collector_workflow_path"] == ".github/workflows/stage6-intake-observability.yml"
           assert evidence["collector_event"] == "workflow_dispatch"
           assert evidence["evidence_schema_version"] == "1.2"
@@ -178,9 +179,9 @@ jobs:
           test "$(jq -r '.conclusion' <<<"$run_json")" = success
           test "$(jq -r '.event' <<<"$run_json")" = workflow_dispatch
           test "$(jq -r '.head_branch' <<<"$run_json")" = development
+          test "$(jq -r '.head_sha' <<<"$run_json")" = c41d50bf579d39021c2f81114dd6ad358c483b83
           test "$(jq -r '.path' <<<"$run_json")" = .github/workflows/stage6-intake-observability.yml
           test "$(jq -r '.repository.full_name' <<<"$run_json")" = "$evidence_repository"
-          jq -e '.head_sha | test("^[0-9a-f]{40}$")' <<<"$run_json" >/dev/null
           printf '%s\n' "$run_json" > /tmp/evidence-run.json
           gh api --paginate \
             "repos/$evidence_repository/actions/runs/$STAGING_EVIDENCE_RUN_ID/artifacts?per_page=100" \
@@ -264,11 +265,13 @@ jobs:
               "branch": evidence_contract["collector_branch"],
               "workflow_path": evidence_contract["collector_workflow_path"],
               "event": evidence_contract["collector_event"],
-              "source_sha": collector_run["head_sha"],
+              "source_sha": evidence_contract["collector_source_sha"],
               "run_id": int(os.environ["STAGING_EVIDENCE_RUN_ID"]),
           }
           if collector != expected_collector:
               raise SystemExit("runtime evidence is not bound to the approved collector run")
+          if collector_run["head_sha"] != evidence_contract["collector_source_sha"]:
+              raise SystemExit("collector run does not use the approved immutable source SHA")
           claims = evidence_document.get("verification_claims")
           required_claims = set(evidence_contract["must_verify"])
           if not isinstance(claims, dict) or set(claims) != required_claims or any(value != "PASS" for value in claims.values()):

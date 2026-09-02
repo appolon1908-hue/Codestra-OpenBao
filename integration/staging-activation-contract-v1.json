@@ -51,6 +51,7 @@
   "staging_evidence": {
     "collector_repository": "appolon1908-hue/Codestra-Prometheus",
     "collector_branch": "development",
+    "collector_source_sha": "c41d50bf579d39021c2f81114dd6ad358c483b83",
     "collector_workflow_path": ".github/workflows/stage6-intake-observability.yml",
     "collector_event": "workflow_dispatch",
     "evidence_schema_version": "1.2",
