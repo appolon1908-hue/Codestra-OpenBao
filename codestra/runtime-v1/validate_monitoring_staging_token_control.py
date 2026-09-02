@@ -24,7 +24,7 @@ BUSINESSES = (
 
 def main() -> None:
     data = json.loads((ROOT / "monitoring-staging-token-control.v1.json").read_text())
-    assert data["schema_version"] == "1.1"
+    assert data["schema_version"] == "1.2"
     assert data["status"] == "SOURCE_PREPARED_NOT_APPLIED"
     assert data["environment"] == "staging"
     assert data["secret_authority"] == "OpenBao"
@@ -36,7 +36,7 @@ def main() -> None:
         "client_secret_path": "kv-platform/data/observability/middleware/staging/keycloak-client",
         "client_secret_committed_to_git": False,
         "keycloak_source_path": "config/clients/monitoring-readonly.json",
-        "scope_claim_mapper": "reviewed-service-scopes",
+        "scope_authority": "Keycloak optional client scopes",
         "required_returned_scopes": ["health.read", "metrics.read"],
     }
     tokens = data["runtime_tokens"]
@@ -49,8 +49,8 @@ def main() -> None:
     oauth = data["prometheus_oauth2"]
     assert oauth == {
         "uses_client_secret_file": True,
-        "requested_scopes": [],
-        "scope_claim_authority": "Keycloak hardcoded reviewed-service-scopes mapper",
+        "requested_scopes": ["metrics.read"],
+        "scope_claim_authority": "Keycloak optional client scope request",
         "required_returned_scope": "metrics.read",
         "stores_access_token": False,
         "automatic_short_lived_token_refresh": True,
