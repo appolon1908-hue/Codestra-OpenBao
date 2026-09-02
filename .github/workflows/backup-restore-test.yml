@@ -96,6 +96,7 @@ jobs:
       BAO_CLIENT_CERT: ${{ vars.OPENBAO_OPERATOR_CERT_PATH }}
       BAO_CLIENT_KEY: ${{ vars.OPENBAO_OPERATOR_KEY_PATH }}
       OPENBAO_OPERATOR_TOKEN_FILE: ${{ vars.OPENBAO_OPERATOR_TOKEN_FILE }}
+      OPENBAO_RESTORED_PROBE_TOKEN_FILE: ${{ vars.OPENBAO_RESTORED_PROBE_TOKEN_FILE }}
       OPENBAO_AGE_IDENTITY_FILE: ${{ vars.OPENBAO_AGE_IDENTITY_FILE }}
       OPENBAO_UNSEAL_KEY_FILES: ${{ vars.OPENBAO_UNSEAL_KEY_FILES }}
       OPENBAO_OFFHOST_REMOTE: ${{ vars.OPENBAO_OFFHOST_REMOTE }}
@@ -116,6 +117,8 @@ jobs:
         run: |
           [[ "$(git rev-parse HEAD)" == "$CODESTRA_SOURCE_SHA" ]]
           [[ "$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CODESTRA_ENVIRONMENT}" --jq .object.sha)" == "$CODESTRA_SOURCE_SHA" ]]
+          [[ -n "$OPENBAO_RESTORED_PROBE_TOKEN_FILE" ]]
+          [[ "$OPENBAO_RESTORED_PROBE_TOKEN_FILE" != "$OPENBAO_OPERATOR_TOKEN_FILE" ]]
           scripts/verify_environment_approval.sh
       - name: Retrieve encrypted snapshot directly from protected off-host storage
         env:
