@@ -81,6 +81,26 @@ jobs:
             | tar --extract --file=- --directory="$IMPORT_PATH" \
                 --no-same-owner --no-same-permissions
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          importer = Path("scripts/prepare_upstream_import.py").read_text(
+              encoding="utf-8"
+          )
+          required = (
+              "original_block_sha256",
+              "PRIVATE_KEY_BLOCK",
+              "_replace_whole_file",
+              "_is_secret_directory_path",
+          )
+          missing = [marker for marker in required if marker not in importer]
+          if missing:
+              raise SystemExit(
+                  f"upstream importer provenance/sanitization controls missing: {missing}"
+              )
+          print("PRIVATE_KEY_TEST_FIXTURE_REMOVED=ENFORCED_BY_IMPORTER")
+          PY
+
           python3 scripts/prepare_upstream_import.py \
             --repo-root . \
             --root "$IMPORT_PATH" \
