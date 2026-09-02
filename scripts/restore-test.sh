@@ -83,13 +83,9 @@ unset restored_probe_token
 probe_token_loaded=true
 
 probe_lookup="$(bao token lookup -format=json)"
-jq -e --arg expectedPolicy "$restored_probe_policy" '
-  (.data.policies | type == "array") and
-  (.data.policies | length == 1) and
-  (.data.policies[0] == $expectedPolicy) and
-  ((.data.renewable // false) == false) and
-  ((.data.ttl // 0) > 0)
-' <<<"$probe_lookup" >/dev/null
+python3 "$(dirname "$0")/verify_restored_probe_token.py" \
+  --expected-policy "$restored_probe_policy" \
+  <<<"$probe_lookup"
 unset probe_lookup
 
 python3 "$(dirname "$0")/verify_secret_hash.py" \
