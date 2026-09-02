@@ -6,6 +6,7 @@ on:
       - .github/workflows/upstream-source-sync.yml
       - .github/workflows/validate-upstream-import.yml
       - scripts/prepare_upstream_import.py
+      - scripts/reject_repository_secrets.sh
       - tests/test_prepare_upstream_import.py
   workflow_dispatch:
 
