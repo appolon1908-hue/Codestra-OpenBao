@@ -16,6 +16,9 @@ class ReleaseGuardTests(unittest.TestCase):
     def test_current_source_cannot_be_released_before_runtime_gates(self) -> None:
         with self.assertRaisesRegex(ValueError, "runtime_authority_not_earned"):
             MODULE.validate_runtime_authority()
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("runtime_blocked_by_vex", source)
+        self.assertIn("codestra_openbao_runtime_disabled", source)
 
     def test_release_manifest_covers_every_runtime_authority_file(self) -> None:
         manifest = MODULE.authority_manifest()

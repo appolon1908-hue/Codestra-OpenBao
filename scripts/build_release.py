@@ -103,6 +103,15 @@ def validate_runtime_authority() -> None:
     for path in paths:
         if load_object(path).get("runtimeApplyAuthorized") is not True:
             raise ValueError(f"runtime_authority_not_earned:{path.relative_to(ROOT)}")
+    vex = load_object(ROOT / "artifacts/supply-chain/openbao-2.6.2-linux-amd64.vex.json")
+    blockers = sorted(
+        vulnerability
+        for statement in vex.get("statements", [])
+        if statement.get("condition") == "codestra_openbao_runtime_disabled"
+        for vulnerability in statement.get("vulnerabilityIds", [])
+    )
+    if blockers:
+        raise ValueError("runtime_blocked_by_vex:" + ",".join(blockers))
     auth = load_object(ROOT / "config/auth/keycloak-jwt.v1.json")
     roles = load_object(ROOT / "openbao/auth/jwt-roles.v1.json")
     if auth.get("jtiReplayCacheImplemented") is not True or roles.get("jtiReplayCacheImplemented") is not True:
