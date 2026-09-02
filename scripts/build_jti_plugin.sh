@@ -46,11 +46,11 @@ mkdir -p "$(dirname "$overlay")"
   [[ "$(sha256sum go.mod | awk '{print $1}')" == "$(jq -r .upstreamGoModSha256 "$manifest")" ]]
   [[ "$(sha256sum go.sum | awk '{print $1}')" == "$(jq -r .upstreamGoSumSha256 "$manifest")" ]]
   [[ "$(awk '$1 == "go" {print $2; exit}' go.mod)" == "$(jq -r .upstreamGoVersion "$manifest")" ]]
-  override_module="$(jq -r .securityDependencyOverride.module "$manifest")"
-  override_version="$(jq -r .securityDependencyOverride.version "$manifest")"
   export GOTOOLCHAIN=local GOPRIVATE='' GONOSUMDB='' \
     GOPROXY='https://proxy.golang.org' GOSUMDB='sum.golang.org'
-  go mod edit -require="${override_module}@${override_version}"
+  while IFS=$'\t' read -r module version; do
+    go mod edit -require="${module}@${version}"
+  done < <(jq -r '.securityDependencyOverrides[] | [.module,.version] | @tsv' "$manifest")
   go mod tidy
   [[ "$(sha256sum go.mod | awk '{print $1}')" == "$(jq -r .overlayGoModSha256 "$manifest")" ]]
   [[ "$(sha256sum go.sum | awk '{print $1}')" == "$(jq -r .overlayGoSumSha256 "$manifest")" ]]
