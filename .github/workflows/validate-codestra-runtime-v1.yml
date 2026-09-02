@@ -114,9 +114,10 @@ jobs:
             >"$work/server.log" 2>&1
           server_status=$?
           set -e
-          if [[ "$server_status" != 124 && "$server_status" != 143 ]]; then
+          if [[ "$server_status" != 124 ]]; then
+            echo "OpenBao server exited before the bounded timeout (status ${server_status})." >&2
             sed -n '1,80p' "$work/server.log" >&2
-            exit "$server_status"
+            exit 1
           fi
           grep -q 'OpenBao server started' "$work/server.log"
 

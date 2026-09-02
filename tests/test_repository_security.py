@@ -155,6 +155,11 @@ class RepositorySecurityTests(unittest.TestCase):
         self.assertIn(
             "sudo timeout --signal=TERM --kill-after=2s 8s", source
         )
+        self.assertIn('if [[ "$server_status" != 124 ]]; then', source)
+        self.assertNotIn('"$server_status" != 143', source)
+        self.assertIn(
+            'OpenBao server exited before the bounded timeout', source
+        )
         self.assertIn("grep -q 'OpenBao server started'", source)
 
     def test_checkout_credentials_are_disabled_except_reviewed_sync_writer(self) -> None:
