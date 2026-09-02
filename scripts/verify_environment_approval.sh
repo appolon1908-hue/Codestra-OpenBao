@@ -20,7 +20,8 @@ approvals="$(gh api "repos/${repository}/actions/runs/${run_id}/approvals")"
 jq -e \
   --arg reviewer "$required_reviewer" \
   --arg environment "$expected_environment" '
-  any(.;
+  type == "array" and
+  any(.[];
     .state == "approved" and
     (.user.login // .reviewer.login) == $reviewer and
     any(.environments[]?; .name == $environment)
