@@ -43,6 +43,51 @@ class RecoveryContractTests(unittest.TestCase):
         self.assertIn("OPENBAO_APPROVAL_ENVIRONMENT: openbao-${{ inputs.environment }}-restore", workflow)
         self.assertIn("git/ref/heads/${CODESTRA_ENVIRONMENT}", workflow)
 
+    def test_post_restore_probe_uses_a_distinct_bounded_token(self) -> None:
+        restore = (ROOT / "scripts/restore-test.sh").read_text()
+        for control in (
+            "OPENBAO_RESTORED_PROBE_TOKEN_FILE",
+            "OPENBAO_RESTORED_PROBE_EXPECTED_POLICY",
+            "pre_restore_token_sha",
+            "restored_probe_token_sha",
+            '[[ "$restored_probe_token_sha" != "$pre_restore_token_sha" ]]',
+            "unset BAO_TOKEN",
+            "bao token lookup -format=json",
+            '(.data.policies | length == 1)',
+            '(.data.policies[0] == $expectedPolicy)',
+            "bao token revoke -self",
+            "restoredProbeCredentialDistinct:true",
+            "restoredProbeTokenRevoked:true",
+        ):
+            self.assertIn(control, restore)
+
+        restore_position = restore.index("bao operator raft snapshot restore -force")
+        discard_position = restore.index("unset BAO_TOKEN", restore_position)
+        probe_read_position = restore.index("restored_probe_token=", discard_position)
+        verify_position = restore.index("verify_secret_hash.py", probe_read_position)
+        revoke_position = restore.index("bao token revoke -self", verify_position)
+        self.assertLess(restore_position, discard_position)
+        self.assertLess(discard_position, probe_read_position)
+        self.assertLess(probe_read_position, verify_position)
+        self.assertLess(verify_position, revoke_position)
+
+        workflow = (ROOT / ".github/workflows/backup-restore-test.yml").read_text()
+        self.assertIn(
+            "OPENBAO_RESTORED_PROBE_TOKEN_FILE: ${{ vars.OPENBAO_RESTORED_PROBE_TOKEN_FILE }}",
+            workflow,
+        )
+        self.assertIn(
+            "OPENBAO_RESTORED_PROBE_EXPECTED_POLICY: ${{ vars.OPENBAO_RESTORED_PROBE_EXPECTED_POLICY }}",
+            workflow,
+        )
+
+    def test_environment_approval_parser_reads_the_response_array(self) -> None:
+        approval = (ROOT / "scripts/verify_environment_approval.sh").read_text()
+        self.assertIn('type == "array"', approval)
+        self.assertIn("any(.[];", approval)
+        self.assertNotIn("any(.;", approval)
+        self.assertIn('(.user.login // .reviewer.login // "") == $reviewer', approval)
+
     def test_production_backup_is_scheduled_and_never_artifacts_snapshot_data(self) -> None:
         workflow = (ROOT / ".github/workflows/scheduled-backup.yml").read_text()
         self.assertIn("cron: '17 2 * * *'", workflow)
