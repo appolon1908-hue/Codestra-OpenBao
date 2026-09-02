@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "control_id": "codestra-monitoring-staging-token-control-v1",
   "status": "SOURCE_PREPARED_NOT_APPLIED",
   "environment": "staging",
@@ -10,8 +10,8 @@
     "audience": "middleware-api",
     "client_secret_path": "kv-platform/data/observability/middleware/staging/keycloak-client",
     "client_secret_committed_to_git": false,
-    "keycloak_source_path": "config/clients/monitoring-readonly.json",
-    "scope_claim_mapper": "reviewed-service-scopes",
+    "keycloak_source_contract": "keycloak-monitoring-readonly.v1.json",
+    "scope_authority": "Keycloak optional client scopes",
     "required_returned_scopes": ["health.read", "metrics.read"]
   },
   "runtime_tokens": [
@@ -20,8 +20,8 @@
   ],
   "prometheus_oauth2": {
     "uses_client_secret_file": true,
-    "requested_scopes": [],
-    "scope_claim_authority": "Keycloak hardcoded reviewed-service-scopes mapper",
+    "requested_scopes": ["metrics.read"],
+    "scope_claim_authority": "Keycloak optional client scope request",
     "required_returned_scope": "metrics.read",
     "stores_access_token": false,
     "automatic_short_lived_token_refresh": true
