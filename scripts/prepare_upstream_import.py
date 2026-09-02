@@ -350,6 +350,13 @@ def _ignored_reason(path: str) -> str | None:
     return None
 
 
+def _is_secret_directory_path(path: str) -> bool:
+    return bool(
+        {part.lower() for part in PurePosixPath(path).parts}
+        & SECRET_DIRECTORY_PARTS
+    )
+
+
 def _has_review_context(path: str) -> bool:
     pure = PurePosixPath(path)
     parts = {part.lower() for part in pure.parts}
@@ -503,6 +510,7 @@ def sanitize_tree(
                 and path.name.lower() != ".env.example"
             )
             or path.suffix.lower() in WHOLE_FILE_SECRET_SUFFIXES
+            or _is_secret_directory_path(relative)
         ):
             original_sha = _replace_whole_file(path, relative, reason or "")
             action = "whole-file-placeholder"
