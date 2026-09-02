@@ -14,6 +14,8 @@ import sys
 from collections.abc import Mapping
 from typing import Any, NoReturn, Sequence
 
+FORBIDDEN_POLICY_NAMES = frozenset({"default", "root"})
+
 
 class ProbeTokenValidationError(ValueError):
     """Raised when the restored probe token is not strictly bounded."""
@@ -34,6 +36,8 @@ def _string_list(value: Any, *, field: str, missing: bool = False) -> list[str]:
 def validate_probe_token(document: Any, expected_policy: str) -> None:
     if not expected_policy or len(expected_policy) > 128:
         _fail("expected policy is invalid")
+    if expected_policy.casefold() in FORBIDDEN_POLICY_NAMES:
+        _fail("reserved default/root policies are prohibited for restore probes")
     if not isinstance(document, Mapping):
         _fail("lookup response must be an object")
     data = document.get("data")
