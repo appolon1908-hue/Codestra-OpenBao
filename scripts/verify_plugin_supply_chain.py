@@ -46,9 +46,17 @@ def validate(sbom_path: Path, report_path: Path) -> tuple[int, int]:
         raise ValueError("plugin_sbom_inventory_incomplete")
     if inventory.get("stdlib") != "go" + manifest["goVersion"]:
         raise ValueError("plugin_go_toolchain_drift")
-    override = manifest["securityDependencyOverride"]
-    if inventory.get(override["module"]) != override["version"]:
-        raise ValueError("plugin_security_override_missing")
+    overrides = manifest["securityDependencyOverrides"]
+    if not isinstance(overrides, list) or not overrides:
+        raise ValueError("plugin_security_overrides_missing")
+    seen_overrides: set[str] = set()
+    for override in overrides:
+        module = override["module"]
+        if module in seen_overrides:
+            raise ValueError(f"plugin_security_override_duplicate:{module}")
+        seen_overrides.add(module)
+        if inventory.get(module) != override["version"]:
+            raise ValueError(f"plugin_security_override_missing:{module}")
     for module, version in manifest["resolvedSecurityModules"].items():
         if module in inventory and inventory[module] != version:
             raise ValueError(f"plugin_module_drift:{module}")
