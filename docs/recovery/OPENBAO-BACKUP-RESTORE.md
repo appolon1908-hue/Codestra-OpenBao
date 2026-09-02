@@ -29,9 +29,32 @@ storage to a dedicated restore runner; GitHub artifacts never transport it.
 - a representative non-production secret hash; and
 - measured restore duration.
 
-The restore forcibly loads the snapshot only after those exclusion checks,
-unseals from protected files and validates the representative hash without
-printing its value.
+The restore forcibly loads the snapshot only after those exclusion checks and
+unseals from protected files. The token that authorized the destructive load is
+then discarded because the restored snapshot replaces the target token store.
+It is never reused for post-restore certification.
+
+### Restored probe credential
+
+The protected restore environment must provide:
+
+- `OPENBAO_RESTORED_PROBE_TOKEN_FILE`, pointing to a regular, non-symlinked,
+  non-repository file with no group or world permissions; and
+- `OPENBAO_RESTORED_PROBE_EXPECTED_POLICY`, naming the token's one exact
+  read-only policy.
+
+The token must have been created before the source snapshot, must therefore be
+contained in the restored token store, and must be held outside Git and outside
+GitHub artifacts. It must differ from the pre-restore operator token, carry
+exactly the expected policy with no `default` or `root` policy, be
+non-renewable, and retain a positive TTL at certification time.
+
+After unseal, the script authenticates with this bounded credential, verifies
+its policy through token lookup, validates the representative secret hash
+without printing the value, revokes the token, and proves the revoked token can
+no longer authenticate. Sanitized evidence records only that the credential
+was distinct, its policy-name hash, and successful revocation; it never records
+the token, accessor, secret value, or policy body.
 
 ## Current evidence
 
