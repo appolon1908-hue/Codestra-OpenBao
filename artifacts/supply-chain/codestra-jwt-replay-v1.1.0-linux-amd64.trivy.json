@@ -3,9 +3,9 @@
   "Trivy": {
     "Version": "0.74.0"
   },
-  "ReportID": "01a05ea7-2f15-74ae-9f8c-f1711e73f250",
-  "CreatedAt": "2026-09-01T22:26:50.005308241+02:00",
-  "ArtifactName": "/tmp/codestra-plugin-supply-v110/root",
+  "ReportID": "01a0628c-739a-73cd-8833-389db4f6b461",
+  "CreatedAt": "2026-09-02T16:36:06.938251844+02:00",
+  "ArtifactName": "/tmp/codestra-plugin-grpc-fixed.sYbpxi",
   "ArtifactType": "filesystem",
   "Results": [
     {
@@ -18,13 +18,13 @@
           "Name": "github.com/openbao/openbao",
           "Identifier": {
             "PURL": "pkg:golang/github.com/openbao/openbao",
-            "UID": "6c5f6c2132155b19"
+            "UID": "2fd945b74638da82"
           },
           "Relationship": "root",
           "DependsOn": [
             "./api",
             "./sdk",
-            "cel.dev/expr@v0.25.1",
+            "cel.dev/expr@v0.25.2",
             "cloud.google.com/go/auth/oauth2adapt@v0.2.8",
             "cloud.google.com/go/auth@v0.20.0",
             "cloud.google.com/go/compute/metadata@v0.9.0",
@@ -98,9 +98,9 @@
             "golang.org/x/text@v0.41.0",
             "golang.org/x/time@v0.15.0",
             "google.golang.org/api@v0.283.0",
-            "google.golang.org/genproto/googleapis/api@v0.0.0-20260414002931-afd174a4e478",
-            "google.golang.org/genproto/googleapis/rpc@v0.0.0-20260523011958-0a33c5d7ca68",
-            "google.golang.org/grpc@v1.82.1",
+            "google.golang.org/genproto/googleapis/api@v0.0.0-20260526163538-3dc84a4a5aaa",
+            "google.golang.org/genproto/googleapis/rpc@v0.0.0-20260526163538-3dc84a4a5aaa",
+            "google.golang.org/grpc@v1.83.1",
             "google.golang.org/protobuf@v1.36.11",
             "gopkg.in/yaml.v3@v3.0.1",
             "stdlib@v1.25.13",
@@ -136,13 +136,13 @@
           "AnalyzedBy": "gobinary"
         },
         {
-          "ID": "cel.dev/expr@v0.25.1",
+          "ID": "cel.dev/expr@v0.25.2",
           "Name": "cel.dev/expr",
           "Identifier": {
-            "PURL": "pkg:golang/cel.dev/expr@v0.25.1",
-            "UID": "21ed3b7eda3b5dfa"
+            "PURL": "pkg:golang/cel.dev/expr@v0.25.2",
+            "UID": "d2631a524cca9034"
           },
-          "Version": "v0.25.1",
+          "Version": "v0.25.2",
           "AnalyzedBy": "gobinary"
         },
         {
@@ -876,33 +876,33 @@
           "AnalyzedBy": "gobinary"
         },
         {
-          "ID": "google.golang.org/genproto/googleapis/api@v0.0.0-20260414002931-afd174a4e478",
+          "ID": "google.golang.org/genproto/googleapis/api@v0.0.0-20260526163538-3dc84a4a5aaa",
           "Name": "google.golang.org/genproto/googleapis/api",
           "Identifier": {
-            "PURL": "pkg:golang/google.golang.org/genproto/googleapis/api@v0.0.0-20260414002931-afd174a4e478",
-            "UID": "912e1f90e28270bf"
+            "PURL": "pkg:golang/google.golang.org/genproto/googleapis/api@v0.0.0-20260526163538-3dc84a4a5aaa",
+            "UID": "c8c9178a856f9b98"
           },
-          "Version": "v0.0.0-20260414002931-afd174a4e478",
+          "Version": "v0.0.0-20260526163538-3dc84a4a5aaa",
           "AnalyzedBy": "gobinary"
         },
         {
-          "ID": "google.golang.org/genproto/googleapis/rpc@v0.0.0-20260523011958-0a33c5d7ca68",
+          "ID": "google.golang.org/genproto/googleapis/rpc@v0.0.0-20260526163538-3dc84a4a5aaa",
           "Name": "google.golang.org/genproto/googleapis/rpc",
           "Identifier": {
-            "PURL": "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260523011958-0a33c5d7ca68",
-            "UID": "c15d42f6d6dc631a"
+            "PURL": "pkg:golang/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260526163538-3dc84a4a5aaa",
+            "UID": "fb90832aab993a80"
           },
-          "Version": "v0.0.0-20260523011958-0a33c5d7ca68",
+          "Version": "v0.0.0-20260526163538-3dc84a4a5aaa",
           "AnalyzedBy": "gobinary"
         },
         {
-          "ID": "google.golang.org/grpc@v1.82.1",
+          "ID": "google.golang.org/grpc@v1.83.1",
           "Name": "google.golang.org/grpc",
           "Identifier": {
-            "PURL": "pkg:golang/google.golang.org/grpc@v1.82.1",
-            "UID": "70b1a9ab9bc1ceb4"
+            "PURL": "pkg:golang/google.golang.org/grpc@v1.83.1",
+            "UID": "ce5f04d3717fcc5d"
           },
-          "Version": "v1.82.1",
+          "Version": "v1.83.1",
           "AnalyzedBy": "gobinary"
         },
         {

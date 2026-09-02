@@ -21,6 +21,7 @@ cd "$repo_root"
 [[ "$confirmation" == "DEPLOY_EXACT_OPENBAO_RUNTIME_${source_sha}" ]]
 [[ "$(jq -r .runtimeApplyAuthorized "config/environments/${environment}/environment.json")" == true ]]
 [[ "$(jq -r .runtimeApplyAuthorized plugins/codestra-jwt-replay/plugin.v1.json)" == true ]]
+python3 scripts/verify_vulnerability_gate.py >/dev/null
 scripts/verify_environment_approval.sh
 
 for command in docker jq openssl sha256sum stat; do command -v "$command" >/dev/null; done

@@ -3,8 +3,8 @@
   "Trivy": {
     "Version": "0.74.0"
   },
-  "ReportID": "01a05e02-fd87-755c-9b58-1aabae7092ab",
-  "CreatedAt": "2026-09-01T19:27:29.415352273+02:00",
+  "ReportID": "01a06283-bd1c-7308-ac4d-b805c1faaa94",
+  "CreatedAt": "2026-09-02T16:26:35.932199878+02:00",
   "ArtifactID": "sha256:0ddf72f329578162b9655ceb11a1a322345763dfb7d168ee599b99b79892ba07",
   "ArtifactName": "ghcr.io/openbao/openbao@sha256:e29524ba7c3f20d01f562c481e3eccbad6c91df45a2f2531433da4951e408cff",
   "ArtifactType": "container_image",
@@ -2378,7 +2378,7 @@
             "https://www.cve.org/CVERecord?id=CVE-2026-75803"
           ],
           "PublishedDate": "2026-08-25T13:19:29.57Z",
-          "LastModifiedDate": "2026-08-28T19:46:29.323Z"
+          "LastModifiedDate": "2026-09-01T19:17:27.543Z"
         },
         {
           "VulnerabilityID": "CVE-2026-14456",
@@ -2900,7 +2900,7 @@
             "https://www.cve.org/CVERecord?id=CVE-2026-75803"
           ],
           "PublishedDate": "2026-08-25T13:19:29.57Z",
-          "LastModifiedDate": "2026-08-28T19:46:29.323Z"
+          "LastModifiedDate": "2026-09-01T19:17:27.543Z"
         }
       ]
     },
@@ -7819,7 +7819,7 @@
             "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Ago"
           },
           "Fingerprint": "sha256:57ac156e66bc787aa04fc60a1fd02ed0f11eb2bfd9d74ffe52b1c9d4ebe6ac21",
-          "Title": "The tar extraction routines in moby/go-archive (Unpack, UnpackLayer, U ...",
+          "Title": "github.com/moby/go-archive: moby/go-archive: Arbitrary file write via link following in tar extraction",
           "Description": "The tar extraction routines in moby/go-archive (Unpack, UnpackLayer, Untar/UntarUncompressed, and the ApplyLayer helpers) do not confine filesystem operations to the destination directory. The extractor decides where each archive entry lands using lexical string checks and then performs the filesystem operation on a path that is resolved by the OS, so links introduced by the archive can be followed out of the destination directory. An attacker who controls the contents of an archive can create or overwrite files at arbitrary paths writable by the extracting process.",
           "Severity": "HIGH",
           "CweIDs": [
@@ -7827,7 +7827,8 @@
           ],
           "VendorSeverity": {
             "bitnami": 3,
-            "ghsa": 3
+            "ghsa": 3,
+            "redhat": 3
           },
           "CVSS": {
             "bitnami": {
@@ -7837,9 +7838,14 @@
             "ghsa": {
               "V40Vector": "CVSS:4.0/AV:L/AC:L/AT:P/PR:N/UI:A/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
               "V40Score": 7.1
+            },
+            "redhat": {
+              "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+              "V3Score": 7.8
             }
           },
           "References": [
+            "https://access.redhat.com/security/cve/CVE-2026-17106",
             "https://docs.docker.com/desktop/release-notes/#4860",
             "https://docs.docker.com/engine/release-notes/29/#2970",
             "https://github.com/bikini/exploitarium/tree/main/docker-cp-copyout-destination-escape",
@@ -7853,6 +7859,7 @@
             "https://github.com/moby/moby/issues/52948",
             "https://github.com/moby/moby/releases/tag/docker-v29.7.0",
             "https://nvd.nist.gov/vuln/detail/CVE-2026-17106",
+            "https://www.cve.org/CVERecord?id=CVE-2026-17106",
             "https://www.imperva.com/blog/copyescape-taking-over-docker-hosts-with-docker-cp"
           ],
           "PublishedDate": "2026-08-18T19:16:45.03Z",
@@ -8379,6 +8386,60 @@
             "https://go.dev/issue/44226",
             "https://pkg.go.dev/vuln/GO-2026-5932"
           ]
+        },
+        {
+          "VulnerabilityID": "CVE-2026-84304",
+          "VendorIDs": [
+            "GHSA-vp52-pcj8-j9qc"
+          ],
+          "PkgID": "google.golang.org/grpc@v1.82.1",
+          "PkgName": "google.golang.org/grpc",
+          "PkgIdentifier": {
+            "PURL": "pkg:golang/google.golang.org/grpc@v1.82.1",
+            "UID": "f70aa71f69c0891d"
+          },
+          "InstalledVersion": "v1.82.1",
+          "FixedVersion": "1.83.1",
+          "Status": "fixed",
+          "Layer": {
+            "Digest": "sha256:e4e224376111298612068799fe268fdf5eb01c9abebd96cff4ca19ec1e674712",
+            "DiffID": "sha256:b432bd98a7d5c46b5d7faa86826d29d7dc199ce15b0bb9a7497cb97648dad002"
+          },
+          "SeveritySource": "ghsa",
+          "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-84304",
+          "DataSource": {
+            "ID": "ghsa",
+            "Name": "GitHub Security Advisory Go",
+            "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Ago"
+          },
+          "Fingerprint": "sha256:19fc8650af9f47b58653e40cf43e03ab78131515e504953b5fa738c6012c3b20",
+          "Title": "gRPC-Go is the Go language implementation of gRPC. Prior to 1.83.1, in ...",
+          "Description": "gRPC-Go is the Go language implementation of gRPC. Prior to 1.83.1, internal/transport/transport.go stores each fragmented HTTP/2 DATA frame as a separate recvMsg in recvBuffer, so millions of one-byte frames can consume disproportionate heap memory even when payload bytes remain within connection and stream flow-control windows. An unauthenticated remote attacker can use concurrent multiplexed streams to exhaust process memory and cause a runtime panic or out-of-memory termination. Receive-buffer compaction is enabled by default and can be controlled temporarily with GRPC_GO_EXPERIMENTAL_ENABLE_RECEIVE_BUFFER_COMPACTION. This issue is fixed in version 1.83.1.",
+          "Severity": "HIGH",
+          "CweIDs": [
+            "CWE-400"
+          ],
+          "VendorSeverity": {
+            "ghsa": 3
+          },
+          "CVSS": {
+            "ghsa": {
+              "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+              "V40Score": 8.7
+            }
+          },
+          "References": [
+            "https://github.com/grpc/grpc-go",
+            "https://github.com/grpc/grpc-go/commit/7354d9c8debb4bcf2225bf429857078de310c176",
+            "https://github.com/grpc/grpc-go/commit/8cfeca0e1ee5ea0980dcc320e20240fa1079ec77",
+            "https://github.com/grpc/grpc-go/pull/9331",
+            "https://github.com/grpc/grpc-go/pull/9333",
+            "https://github.com/grpc/grpc-go/releases/tag/v1.83.1",
+            "https://github.com/grpc/grpc-go/security/advisories/GHSA-vp52-pcj8-j9qc",
+            "https://nvd.nist.gov/vuln/detail/CVE-2026-84304"
+          ],
+          "PublishedDate": "2026-09-01T19:17:30.743Z",
+          "LastModifiedDate": "2026-09-01T20:17:24.507Z"
         }
       ]
     }

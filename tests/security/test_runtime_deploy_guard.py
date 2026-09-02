@@ -24,6 +24,7 @@ class RuntimeDeployGuardTests(unittest.TestCase):
             "RAFT_DATA_DELETED=NO",
             "verify_ssh_unchanged.py",
             "verify_tls_material.sh",
+            "verify_vulnerability_gate.py",
         ):
             self.assertIn(required, source)
         for forbidden in ("rm -rf", "volume rm", "operator init", "raft snapshot restore"):
