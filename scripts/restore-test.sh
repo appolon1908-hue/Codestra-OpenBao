@@ -14,6 +14,12 @@ restored_probe_policy="${OPENBAO_RESTORED_PROBE_EXPECTED_POLICY:?set the exact r
 [[ "$environment" != production ]]
 [[ "${OPENBAO_ISOLATED_RESTORE_ACKNOWLEDGED:-false}" == true ]]
 [[ "$restored_probe_policy" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$ ]]
+case "${restored_probe_policy,,}" in
+  default|root)
+    echo 'Reserved default/root policies cannot certify a restore probe.' >&2
+    exit 1
+    ;;
+esac
 [[ -f "$artifact" && -f "$checksum" && -f "$identity" ]]
 [[ -f "$operator_token_file" && ! -L "$operator_token_file" ]]
 [[ -f "$restored_probe_token_file" && ! -L "$restored_probe_token_file" ]]
