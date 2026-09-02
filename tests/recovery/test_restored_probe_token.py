@@ -45,7 +45,7 @@ class RestoredProbeTokenPolicyTests(unittest.TestCase):
         )
 
     def test_additional_direct_policy_is_rejected(self) -> None:
-        self.assert_rejected(lookup(policies=[EXPECTED_POLICY, "operator"]]))
+        self.assert_rejected(lookup(policies=[EXPECTED_POLICY, "operator"]))
 
     def test_additional_token_policy_is_rejected(self) -> None:
         self.assert_rejected(
