@@ -38,6 +38,24 @@ class WorkloadSecretAuthorityTests(unittest.TestCase):
         policy["schemaVersion"] = True
         self.reject(policy)
 
+    def test_duplicate_json_object_keys_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            candidate = Path(temporary_directory)
+            policy_path = candidate / "config" / "workload-secret-authority.v1.json"
+            policy_path.parent.mkdir()
+            serialized = json.dumps(self.policy)
+            policy_path.write_text(
+                serialized.replace(
+                    '"runtimeApplyAuthorized": false',
+                    '"runtimeApplyAuthorized": true, '
+                    '"runtimeApplyAuthorized": false',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit):
+                VALIDATOR.main(policy_path, candidate)
+
     def test_non_integer_token_lifetimes_are_rejected(self) -> None:
         for malformed_lifetime in (True, 1.5):
             with self.subTest(malformed_lifetime=malformed_lifetime):

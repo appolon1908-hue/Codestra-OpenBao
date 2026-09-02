@@ -30,6 +30,16 @@ def fail(message: str) -> None:
     raise SystemExit(f"OPENBAO_SOURCE_AUTHORITY=FAIL: {message}")
 
 
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    """Reject ambiguous JSON objects before policy validation."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            fail(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
 def resolve_policy_path(candidate_root: Path, policy_path: Path) -> Path:
     """Require the policy to be the exact regular file beneath a real root."""
     root = Path(os.path.abspath(candidate_root))
@@ -201,7 +211,10 @@ def validate(policy: dict) -> None:
 def main(policy_path: Path = POLICY, candidate_root: Path = ROOT) -> int:
     try:
         trusted_policy_path = resolve_policy_path(candidate_root, policy_path)
-        policy = json.loads(trusted_policy_path.read_text(encoding="utf-8"))
+        policy = json.loads(
+            trusted_policy_path.read_text(encoding="utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+        )
     except (OSError, json.JSONDecodeError) as exc:
         fail(str(exc))
     validate(policy)
