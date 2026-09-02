@@ -123,6 +123,19 @@ class PrepareUpstreamImportTests(unittest.TestCase):
         )
         self.assertNotIn(b"binary-private-material", path.read_bytes())
 
+    def test_generic_file_under_secret_directory_is_replaced_wholesale(self) -> None:
+        path = self.write(
+            "tests/secrets/database.json",
+            b'{"password":"arbitrary-value-not-covered-by-token-regexes"}\n',
+        )
+        self.write_stage_index([("tests/secrets/database.json", "100644")])
+        lock = self.prepare()
+        self.assertEqual(lock["ignored_path_count"], 1)
+        self.assertIn(
+            b"CODESTRA_REVIEWED_UPSTREAM_SECRET_FIXTURE_REMOVED", path.read_bytes()
+        )
+        self.assertNotIn(b"arbitrary-value-not-covered", path.read_bytes())
+
     def test_ignored_path_without_review_context_is_rejected(self) -> None:
         self.write("config/client.p12", b"\x00binary-private-material")
         self.write_stage_index([("config/client.p12", "100644")])
