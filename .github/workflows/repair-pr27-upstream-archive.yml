@@ -42,6 +42,31 @@ jobs:
           remote_development="$(git ls-remote origin refs/heads/development | awk '{print $1}')"
           [[ "$remote_development" == "$EXPECTED_DEVELOPMENT_SHA" ]]
 
+          git ls-tree -r --name-only -z "$EXPECTED_PAYLOAD_HEAD" -- upstream \
+            > "$RUNNER_TEMP/pr27-upstream-paths.z"
+          [[ -s "$RUNNER_TEMP/pr27-upstream-paths.z" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+
+          raw = Path("/home/runner/work/_temp/pr27-upstream-paths.z")
+          # GITHUB-hosted runners expose RUNNER_TEMP at /home/runner/work/_temp.
+          # Fall back to the environment so this assertion also works on a
+          # compatible runner with a different workspace root.
+          import os
+          raw = Path(os.environ["RUNNER_TEMP"]) / "pr27-upstream-paths.z"
+          paths = [
+              item.decode("utf-8")
+              for item in raw.read_bytes().split(b"\0")
+              if item
+          ]
+          if not paths or len(paths) != len(set(paths)):
+              raise SystemExit("reviewed upstream path manifest is empty or duplicated")
+          escaped = [path for path in paths if not path.startswith("upstream/")]
+          if escaped:
+              raise SystemExit(f"reviewed path escaped upstream authority: {escaped[:20]}")
+          print(f"REVIEWED_UPSTREAM_PATHS={len(paths)}")
+          PY
+
       - name: Set up the upstream Go toolchain
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
@@ -159,6 +184,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           payload="$RUNNER_TEMP/openbao-pr27-payload"
+          pathspec_file="$RUNNER_TEMP/pr27-upstream-paths.z"
           rm -rf "$payload"
           mkdir -p "$payload"
           tar -cf "$payload/upstream.tar" upstream
@@ -175,9 +201,53 @@ jobs:
           cp "$payload/CODESTRA_UPSTREAM_SANITIZATION.json" .
           rm -f .github/workflows/repair-pr27-upstream-archive.yml
 
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import stat
+          from pathlib import Path
+
+          expected_file = Path(os.environ["RUNNER_TEMP"]) / "pr27-upstream-paths.z"
+          expected = {
+              item.decode("utf-8")
+              for item in expected_file.read_bytes().split(b"\0")
+              if item
+          }
+          actual: set[str] = set()
+          for directory, directory_names, file_names in os.walk(
+              "upstream", topdown=True, followlinks=False
+          ):
+              for name in list(directory_names):
+                  path = Path(directory) / name
+                  if path.is_symlink():
+                      raise SystemExit(f"symlinked directory is prohibited: {path}")
+              for name in file_names:
+                  path = Path(directory) / name
+                  mode = path.lstat().st_mode
+                  if not stat.S_ISREG(mode):
+                      raise SystemExit(f"non-regular upstream object is prohibited: {path}")
+                  actual.add(path.as_posix())
+          missing = sorted(expected - actual)
+          unexpected = sorted(actual - expected)
+          if missing or unexpected:
+              raise SystemExit(
+                  "restored upstream path set differs from reviewed payload: "
+                  f"missing={missing[:20]}, unexpected={unexpected[:20]}"
+              )
+          print(f"RESTORED_UPSTREAM_PATH_SET=PASS count={len(actual)}")
+          PY
+
           bash scripts/reject_repository_secrets.sh upstream
+
+          # The upstream source tree is intentionally ignored by repository
+          # policy. Stage only the exact NUL-delimited path list captured from
+          # the reviewed payload commit; never force-add the directory broadly.
+          git add -u -- .
+          GIT_LITERAL_PATHSPECS=1 git add -f \
+            --pathspec-from-file="$pathspec_file" \
+            --pathspec-file-nul
           git add -A -- \
-            upstream \
             CODESTRA_UPSTREAM_LOCK.json \
             CODESTRA_UPSTREAM_SANITIZATION.json
           git diff --cached --check
