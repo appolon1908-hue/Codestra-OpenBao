@@ -92,7 +92,7 @@ jobs:
             --lock CODESTRA_UPSTREAM_LOCK.json \
             --pathspec-output "$PATHSPEC_FILE"
 
-          ./scripts/reject_repository_secrets.sh "$IMPORT_PATH"
+          bash scripts/reject_repository_secrets.sh "$IMPORT_PATH"
 
           git config user.name "codestra-upstream-sync"
           git config user.email "github-actions[bot]@users.noreply.github.com"
