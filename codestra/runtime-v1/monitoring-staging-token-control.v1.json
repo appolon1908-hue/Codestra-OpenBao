@@ -10,7 +10,7 @@
     "audience": "middleware-api",
     "client_secret_path": "kv-platform/data/observability/middleware/staging/keycloak-client",
     "client_secret_committed_to_git": false,
-    "keycloak_source_path": "config/clients/monitoring-readonly.json",
+    "keycloak_source_contract": "keycloak-monitoring-readonly.v1.json",
     "scope_authority": "Keycloak optional client scopes",
     "required_returned_scopes": ["health.read", "metrics.read"]
   },

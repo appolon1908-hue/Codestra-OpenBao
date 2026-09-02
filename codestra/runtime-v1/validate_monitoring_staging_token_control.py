@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -29,16 +30,65 @@ def main() -> None:
     assert data["environment"] == "staging"
     assert data["secret_authority"] == "OpenBao"
     assert data["identity_authority"] == "Keycloak"
+    keycloak_source = json.loads(
+        (ROOT / "keycloak-monitoring-readonly.v1.json").read_text()
+    )
+    assert keycloak_source == {
+        "schema_version": "1.0",
+        "source_repository": "appolon1908-hue/Keycloak",
+        "source_branch": "safety/monitoring-readonly-exact-audience-20260902",
+        "source_sha": keycloak_source["source_sha"],
+        "source_files": [
+            {
+                "path": "config/clients/monitoring-readonly.json",
+                "sha256": "sha256:04dfb317ba4df345d4d326d4845d18eb3da8aeda2218e8e3c8bb629888b51f11",
+            },
+            {
+                "path": "config/client-scopes/health.read.json",
+                "sha256": "sha256:540fa67431c8c5c482acd5fa11a9578d51822b0e80a95d430bc188ccac0f346c",
+            },
+            {
+                "path": "config/client-scopes/metrics.read.json",
+                "sha256": "sha256:cd46f1a3883d5161e85cb7a9ebaf0c45fab5c06922554c89c7e01f4c94c86bc2",
+            },
+        ],
+        "client": {
+            "client_id": "monitoring-readonly",
+            "protocol_mapper_names": ["audience-middleware-api"],
+            "audiences": ["middleware-api"],
+            "default_client_scopes": [],
+            "optional_client_scopes": ["health.read", "metrics.read"],
+            "full_scope_allowed": False,
+            "service_accounts_enabled": True,
+        },
+        "client_scopes": [
+            {
+                "name": "health.read",
+                "include_in_token_scope": True,
+                "protocol_mappers": [],
+            },
+            {
+                "name": "metrics.read",
+                "include_in_token_scope": True,
+                "protocol_mappers": [],
+            },
+        ],
+        "secret_values_included": False,
+    }
+    assert re.fullmatch(r"[0-9a-f]{40}", keycloak_source["source_sha"])
     client = data["client"]
     assert client == {
         "client_id": "monitoring-readonly",
         "audience": "middleware-api",
         "client_secret_path": "kv-platform/data/observability/middleware/staging/keycloak-client",
         "client_secret_committed_to_git": False,
-        "keycloak_source_path": "config/clients/monitoring-readonly.json",
+        "keycloak_source_contract": "keycloak-monitoring-readonly.v1.json",
         "scope_authority": "Keycloak optional client scopes",
         "required_returned_scopes": ["health.read", "metrics.read"],
     }
+    assert client["client_id"] == keycloak_source["client"]["client_id"]
+    assert [client["audience"]] == keycloak_source["client"]["audiences"]
+    assert client["required_returned_scopes"] == keycloak_source["client"]["optional_client_scopes"]
     tokens = data["runtime_tokens"]
     assert len(tokens) == 2
     assert {(item["required_scope"], item["endpoint"]) for item in tokens} == {
