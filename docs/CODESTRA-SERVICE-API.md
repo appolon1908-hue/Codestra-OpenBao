@@ -6,9 +6,9 @@ This repository owns the **secrets-pki-workload-identity-authority** for the Cod
 
 OpenBao keeps its native API and protocol. The shared Codestra control plane in `appolon1908-hue/Codestra-Telemetry` performs only sanitized health, readiness, contract, topology, and immutable-release read-back. It never proxies seal, leader, secret, identity, PKI, token, policy, transit, audit, initialization, unseal, or credential-issuance APIs.
 
-Canonical hostname: `bao.codestra.media`  
-Native exposure: `private_strong_auth`  
-Deployment class: `central`  
+Canonical hostname: `bao.codestra.media`
+Native exposure: `private_strong_auth`
+Deployment class: `central`
 Contract: `codestra/api/service-contract.v1.json`
 
 ## Native operations
