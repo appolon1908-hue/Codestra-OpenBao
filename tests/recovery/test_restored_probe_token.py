@@ -44,6 +44,13 @@ class RestoredProbeTokenPolicyTests(unittest.TestCase):
             lookup(token_policies=[EXPECTED_POLICY]), EXPECTED_POLICY
         )
 
+    def test_reserved_default_and_root_policy_names_are_rejected(self) -> None:
+        for policy in ("default", "root", "DeFaUlT", "ROOT"):
+            with self.subTest(policy=policy):
+                document = lookup(policies=[policy], token_policies=[policy])
+                with self.assertRaises(VERIFIER.ProbeTokenValidationError):
+                    VERIFIER.validate_probe_token(document, policy)
+
     def test_additional_direct_policy_is_rejected(self) -> None:
         self.assert_rejected(lookup(policies=[EXPECTED_POLICY, "operator"]))
 
