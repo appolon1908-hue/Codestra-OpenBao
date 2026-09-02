@@ -36,8 +36,8 @@ def main() -> None:
     assert keycloak_source == {
         "schema_version": "1.0",
         "source_repository": "appolon1908-hue/Keycloak",
-        "source_branch": "safety/monitoring-readonly-exact-audience-20260902",
-        "source_sha": keycloak_source["source_sha"],
+        "source_branch": "main",
+        "source_sha": "fd9771bcf756c3ef1611422838beacb2d2575caa",
         "source_files": [
             {
                 "path": "config/clients/monitoring-readonly.json",
