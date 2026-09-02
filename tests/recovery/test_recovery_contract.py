@@ -53,22 +53,36 @@ class RecoveryContractTests(unittest.TestCase):
             '[[ "$restored_probe_token_sha" != "$pre_restore_token_sha" ]]',
             "unset BAO_TOKEN",
             "bao token lookup -format=json",
-            '(.data.policies | length == 1)',
-            '(.data.policies[0] == $expectedPolicy)',
+            "verify_restored_probe_token.py",
+            '--expected-policy "$restored_probe_policy"',
             "bao token revoke -self",
             "restoredProbeCredentialDistinct:true",
             "restoredProbeTokenRevoked:true",
         ):
             self.assertIn(control, restore)
 
+        verifier = (ROOT / "scripts/verify_restored_probe_token.py").read_text()
+        for control in (
+            "token_policies",
+            "identity_policies",
+            "external_namespace_policies",
+            "inherited identity policies are prohibited",
+            "inherited external-namespace policies are prohibited",
+            "probe token must be explicitly non-renewable",
+            "probe token must have a positive integer TTL",
+        ):
+            self.assertIn(control, verifier)
+
         restore_position = restore.index("bao operator raft snapshot restore -force")
         discard_position = restore.index("unset BAO_TOKEN", restore_position)
         probe_read_position = restore.index("restored_probe_token=", discard_position)
-        verify_position = restore.index("verify_secret_hash.py", probe_read_position)
+        policy_position = restore.index("verify_restored_probe_token.py", probe_read_position)
+        verify_position = restore.index("verify_secret_hash.py", policy_position)
         revoke_position = restore.index("bao token revoke -self", verify_position)
         self.assertLess(restore_position, discard_position)
         self.assertLess(discard_position, probe_read_position)
-        self.assertLess(probe_read_position, verify_position)
+        self.assertLess(probe_read_position, policy_position)
+        self.assertLess(policy_position, verify_position)
         self.assertLess(verify_position, revoke_position)
 
         workflow = (ROOT / ".github/workflows/backup-restore-test.yml").read_text()
