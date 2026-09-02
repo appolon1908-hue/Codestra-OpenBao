@@ -59,7 +59,7 @@ jobs:
               "--pathspec-from-file=\"$PATHSPEC_FILE\"",
               "--pathspec-file-nul",
               "git add -u -- \"$IMPORT_PATH\"",
-              "./scripts/reject_repository_secrets.sh \"$IMPORT_PATH\"",
+              "bash scripts/reject_repository_secrets.sh \"$IMPORT_PATH\"",
           )
           missing = [marker for marker in required if marker not in workflow]
           if missing:
@@ -80,4 +80,4 @@ jobs:
       - name: Re-run repository secret-shape rejection
         run: |
           find . -type d -name __pycache__ -prune -exec rm -rf {} +
-          ./scripts/reject_repository_secrets.sh .
+          bash scripts/reject_repository_secrets.sh .
