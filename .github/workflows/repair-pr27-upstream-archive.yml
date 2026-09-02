@@ -25,13 +25,13 @@ jobs:
       BRANCH_NAME: sync/openbao-upstream-dd9c19c37a878cf4a81b18efb8d6f0599c7da923-79016e7d0a693149fde2878f09ff9861011e66a3
       ARCHIVE_PATH: upstream/physical/raft/snapshot/testdata/spaces-meta.tar
     steps:
-      - name: Check out the exact repair trigger
+      - name: Check out exact repair trigger
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Prove this is the one authorized workflow-only trigger chain
+      - name: Prove exact workflow-only trigger and capture reviewed paths
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -39,41 +39,28 @@ jobs:
           mapfile -t changed < <(git diff --name-only "$EXPECTED_PAYLOAD_HEAD"..HEAD)
           [[ "${#changed[@]}" -eq 1 ]]
           [[ "${changed[0]}" == ".github/workflows/repair-pr27-upstream-archive.yml" ]]
-          remote_development="$(git ls-remote origin refs/heads/development | awk '{print $1}')"
-          [[ "$remote_development" == "$EXPECTED_DEVELOPMENT_SHA" ]]
+          [[ "$(git ls-remote origin refs/heads/development | awk '{print $1}')" == "$EXPECTED_DEVELOPMENT_SHA" ]]
 
           git ls-tree -r --name-only -z "$EXPECTED_PAYLOAD_HEAD" -- upstream \
             > "$RUNNER_TEMP/pr27-upstream-paths.z"
-          [[ -s "$RUNNER_TEMP/pr27-upstream-paths.z" ]]
           python3 - <<'PY'
+          import os
           from pathlib import Path
 
-          raw = Path("/home/runner/work/_temp/pr27-upstream-paths.z")
-          # GITHUB-hosted runners expose RUNNER_TEMP at /home/runner/work/_temp.
-          # Fall back to the environment so this assertion also works on a
-          # compatible runner with a different workspace root.
-          import os
-          raw = Path(os.environ["RUNNER_TEMP"]) / "pr27-upstream-paths.z"
-          paths = [
-              item.decode("utf-8")
-              for item in raw.read_bytes().split(b"\0")
-              if item
-          ]
-          if not paths or len(paths) != len(set(paths)):
-              raise SystemExit("reviewed upstream path manifest is empty or duplicated")
-          escaped = [path for path in paths if not path.startswith("upstream/")]
-          if escaped:
-              raise SystemExit(f"reviewed path escaped upstream authority: {escaped[:20]}")
+          path_file = Path(os.environ["RUNNER_TEMP"]) / "pr27-upstream-paths.z"
+          paths = [p.decode("utf-8") for p in path_file.read_bytes().split(b"\0") if p]
+          assert paths and len(paths) == len(set(paths))
+          assert all(path.startswith("upstream/") for path in paths)
           print(f"REVIEWED_UPSTREAM_PATHS={len(paths)}")
           PY
 
-      - name: Set up the upstream Go toolchain
+      - name: Set up upstream Go toolchain
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: upstream/.go-version
           cache: false
 
-      - name: Repair the embedded checksum without changing archive structure
+      - name: Repair embedded checksum without changing archive structure
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -83,10 +70,11 @@ jobs:
           import hashlib
           import io
           import json
+          import os
           import tarfile
           from pathlib import Path
 
-          archive = Path("upstream/physical/raft/snapshot/testdata/spaces-meta.tar")
+          archive = Path(os.environ["ARCHIVE_PATH"])
           lock_path = Path("CODESTRA_UPSTREAM_LOCK.json")
           old_digest = "aa73f76d409d148bae2d7263544633647fc0a8b52c416ea2e7c22c3e77a8d272"
           new_digest = "23da5e3443ff61c0463ade613f319bb1796f5d98e6db5a79eff3ebf5b36fd075"
@@ -94,32 +82,25 @@ jobs:
           new_line = f"{new_digest}  state.bin".encode("ascii")
           assert len(old_line) == len(new_line)
 
-          before = archive.read_bytes()
-          assert before.count(old_line) == 1
-
           def inspect(payload: bytes):
               with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as bundle:
                   metadata = [
                       (
-                          member.name,
-                          member.mode,
-                          member.uid,
-                          member.gid,
-                          member.uname,
-                          member.gname,
-                          member.mtime,
-                          member.size,
-                          member.type,
+                          m.name, m.mode, m.uid, m.gid, m.uname, m.gname,
+                          m.mtime, m.size, m.type,
                       )
-                      for member in bundle.getmembers()
+                      for m in bundle.getmembers()
                   ]
                   members = {
-                      member.name: bundle.extractfile(member).read()
-                      for member in bundle.getmembers()
-                      if member.isfile()
+                      m.name: bundle.extractfile(m).read()
+                      for m in bundle.getmembers()
+                      if m.isfile()
                   }
               return metadata, members
 
+          before = archive.read_bytes()
+          assert before.count(old_line) == 1
+          before_sha = hashlib.sha256(before).hexdigest()
           before_metadata, before_members = inspect(before)
           assert list(before_members) == ["meta.json", "SHA256SUMS", "state.bin"]
           assert hashlib.sha256(before_members["state.bin"]).hexdigest() == new_digest
@@ -127,36 +108,35 @@ jobs:
           after = before.replace(old_line, new_line, 1)
           assert len(after) == len(before)
           archive.write_bytes(after)
-
+          after_sha = hashlib.sha256(after).hexdigest()
           after_metadata, after_members = inspect(after)
           assert after_metadata == before_metadata
           assert after_members["meta.json"] == before_members["meta.json"]
           assert after_members["state.bin"] == before_members["state.bin"]
 
-          checksum_lines = after_members["SHA256SUMS"].decode("ascii").splitlines()
-          parsed = {}
-          for line in checksum_lines:
+          checksums = {}
+          for line in after_members["SHA256SUMS"].decode("ascii").splitlines():
               digest, name = line.split("  ", 1)
-              parsed[name] = digest
-          assert set(parsed) == {"meta.json", "state.bin"}
-          for name, digest in parsed.items():
+              checksums[name] = digest
+          assert set(checksums) == {"meta.json", "state.bin"}
+          for name, digest in checksums.items():
               assert hashlib.sha256(after_members[name]).hexdigest() == digest
-          assert parsed["state.bin"] == new_digest
+          assert checksums["state.bin"] == new_digest
 
           lock = json.loads(lock_path.read_text(encoding="utf-8"))
           repair = {
               "archive": archive.as_posix(),
               "member": "state.bin",
               "reason": "recompute embedded SHA256SUMS after deterministic private-key fixture sanitization",
+              "archive_sha256_before": before_sha,
+              "archive_sha256_after": after_sha,
               "sanitized_member_sha256": new_digest,
               "archive_structure_preserved": True,
               "member_order_and_metadata_preserved": True,
               "secret_values_recorded": False,
           }
-          repairs = lock.setdefault("archive_integrity_repairs", [])
           repairs = [
-              item
-              for item in repairs
+              item for item in lock.get("archive_integrity_repairs", [])
               if not (
                   item.get("archive") == repair["archive"]
                   and item.get("member") == repair["member"]
@@ -172,14 +152,14 @@ jobs:
           print("UPSTREAM_ARCHIVE_EMBEDDED_CHECKSUMS=PASS")
           PY
 
-      - name: Run the focused upstream archive test
+      - name: Run focused upstream archive test
         working-directory: upstream
         shell: bash
         run: |
           set -Eeuo pipefail
           go test ./physical/raft/snapshot -run '^TestArchive_GoodData$' -count=1
 
-      - name: Rebuild only the reviewed payload on current development
+      - name: Rebuild only reviewed payload on current development
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -188,8 +168,7 @@ jobs:
           rm -rf "$payload"
           mkdir -p "$payload"
           tar -cf "$payload/upstream.tar" upstream
-          cp CODESTRA_UPSTREAM_LOCK.json "$payload/"
-          cp CODESTRA_UPSTREAM_SANITIZATION.json "$payload/"
+          cp CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json "$payload/"
 
           git fetch --no-tags origin \
             "+refs/heads/development:refs/remotes/origin/development"
@@ -199,7 +178,6 @@ jobs:
           tar -xf "$payload/upstream.tar"
           cp "$payload/CODESTRA_UPSTREAM_LOCK.json" .
           cp "$payload/CODESTRA_UPSTREAM_SANITIZATION.json" .
-          rm -f .github/workflows/repair-pr27-upstream-archive.yml
 
           python3 - <<'PY'
           from __future__ import annotations
@@ -208,79 +186,77 @@ jobs:
           import stat
           from pathlib import Path
 
-          expected_file = Path(os.environ["RUNNER_TEMP"]) / "pr27-upstream-paths.z"
-          expected = {
-              item.decode("utf-8")
-              for item in expected_file.read_bytes().split(b"\0")
-              if item
-          }
+          path_file = Path(os.environ["RUNNER_TEMP"]) / "pr27-upstream-paths.z"
+          expected = {p.decode("utf-8") for p in path_file.read_bytes().split(b"\0") if p}
           actual: set[str] = set()
           for directory, directory_names, file_names in os.walk(
               "upstream", topdown=True, followlinks=False
           ):
-              for name in list(directory_names):
+              for name in directory_names:
                   path = Path(directory) / name
                   if path.is_symlink():
-                      raise SystemExit(f"symlinked directory is prohibited: {path}")
+                      raise SystemExit(f"symlinked directory prohibited: {path}")
               for name in file_names:
                   path = Path(directory) / name
-                  mode = path.lstat().st_mode
-                  if not stat.S_ISREG(mode):
-                      raise SystemExit(f"non-regular upstream object is prohibited: {path}")
+                  if not stat.S_ISREG(path.lstat().st_mode):
+                      raise SystemExit(f"non-regular object prohibited: {path}")
                   actual.add(path.as_posix())
           missing = sorted(expected - actual)
           unexpected = sorted(actual - expected)
           if missing or unexpected:
               raise SystemExit(
-                  "restored upstream path set differs from reviewed payload: "
-                  f"missing={missing[:20]}, unexpected={unexpected[:20]}"
+                  f"reviewed path mismatch: missing={missing[:20]}, unexpected={unexpected[:20]}"
               )
           print(f"RESTORED_UPSTREAM_PATH_SET=PASS count={len(actual)}")
           PY
 
           bash scripts/reject_repository_secrets.sh upstream
 
-          # The upstream source tree is intentionally ignored by repository
-          # policy. Stage only the exact NUL-delimited path list captured from
-          # the reviewed payload commit; never force-add the directory broadly.
-          git add -u -- .
+          # Stage any tracked deletions without failing when there are none.
+          while IFS= read -r -d '' deleted_path; do
+            git update-index --remove -- "$deleted_path"
+          done < <(git ls-files -z --deleted)
+
+          # Upstream is intentionally ignored. Force-add only the exact reviewed
+          # NUL-delimited path manifest, never the directory as a broad pathspec.
           GIT_LITERAL_PATHSPECS=1 git add -f \
             --pathspec-from-file="$pathspec_file" \
             --pathspec-file-nul
-          git add -A -- \
-            CODESTRA_UPSTREAM_LOCK.json \
-            CODESTRA_UPSTREAM_SANITIZATION.json
+          git add -A -- CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json
           git diff --cached --check
 
           python3 - <<'PY'
           import subprocess
 
-          allowed_exact = {
+          allowed = {
               "CODESTRA_UPSTREAM_LOCK.json",
               "CODESTRA_UPSTREAM_SANITIZATION.json",
           }
-          paths = subprocess.check_output(
-              ["git", "diff", "--cached", "--name-only", "-z"]
-          ).split(b"\0")
-          escaped = []
-          for raw in paths:
-              if not raw:
-                  continue
-              path = raw.decode("utf-8")
-              if path not in allowed_exact and not path.startswith("upstream/"):
-                  escaped.append(path)
+          staged = [
+              raw.decode("utf-8")
+              for raw in subprocess.check_output(
+                  ["git", "diff", "--cached", "--name-only", "-z"]
+              ).split(b"\0")
+              if raw
+          ]
+          escaped = [
+              path for path in staged
+              if path not in allowed and not path.startswith("upstream/")
+          ]
           if escaped:
-              raise SystemExit(f"rebased payload escaped authority boundary: {escaped}")
+              raise SystemExit(f"staged payload escaped boundary: {escaped}")
+          if not staged:
+              raise SystemExit("repair produced no staged payload")
           PY
 
           git config user.name "codestra-upstream-repair"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "vendor: repair sanitized OpenBao snapshot checksum and rebase source"
-
           [[ "$(git rev-parse HEAD^)" == "$EXPECTED_DEVELOPMENT_SHA" ]]
+
           changed="$(git diff --name-only "$EXPECTED_DEVELOPMENT_SHA"..HEAD)"
           if grep -Ev '^(upstream/|CODESTRA_UPSTREAM_LOCK\.json$|CODESTRA_UPSTREAM_SANITIZATION\.json$)' <<<"$changed"; then
-            echo "Final commit contains a path outside the reviewed upstream payload." >&2
+            echo "Final commit contains a path outside the reviewed payload." >&2
             exit 1
           fi
 
