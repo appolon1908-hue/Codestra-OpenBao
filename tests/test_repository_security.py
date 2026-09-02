@@ -145,6 +145,23 @@ class RepositorySecurityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unapproved_or_mutable"):
             VALIDATOR.validate_workflow_pins(unapproved)
 
+    def test_native_config_validation_uses_supported_cli_and_bounded_startup(self) -> None:
+        source = (
+            ROOT / ".github/workflows/validate-codestra-runtime-v1.yml"
+        ).read_text()
+        self.assertIn("./.tmp-openbao operator validate-config", source)
+        self.assertNotIn("-verify-only", source)
+        self.assertNotIn("-test-verify-only", source)
+        self.assertIn(
+            "sudo timeout --signal=TERM --kill-after=2s 8s", source
+        )
+        self.assertIn('if [[ "$server_status" != 124 ]]; then', source)
+        self.assertNotIn('"$server_status" != 143', source)
+        self.assertIn(
+            'OpenBao server exited before the bounded timeout', source
+        )
+        self.assertIn("grep -q 'OpenBao server started'", source)
+
     def test_checkout_credentials_are_disabled_except_reviewed_sync_writer(self) -> None:
         VALIDATOR.validate_all_workflows()
         validate_path = ROOT / ".github/workflows/validate.yml"
