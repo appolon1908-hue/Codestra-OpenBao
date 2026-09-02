@@ -31,12 +31,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Prove this is the one authorized workflow-only trigger
+      - name: Prove this is the one authorized workflow-only trigger chain
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$(git rev-parse HEAD^)" == "$EXPECTED_PAYLOAD_HEAD" ]]
-          mapfile -t changed < <(git diff --name-only HEAD^ HEAD)
+          [[ "$(git merge-base HEAD "$EXPECTED_PAYLOAD_HEAD")" == "$EXPECTED_PAYLOAD_HEAD" ]]
+          mapfile -t changed < <(git diff --name-only "$EXPECTED_PAYLOAD_HEAD"..HEAD)
           [[ "${#changed[@]}" -eq 1 ]]
           [[ "${changed[0]}" == ".github/workflows/repair-pr27-upstream-archive.yml" ]]
           remote_development="$(git ls-remote origin refs/heads/development | awk '{print $1}')"
@@ -179,8 +179,7 @@ jobs:
           git add -A -- \
             upstream \
             CODESTRA_UPSTREAM_LOCK.json \
-            CODESTRA_UPSTREAM_SANITIZATION.json \
-            .github/workflows/repair-pr27-upstream-archive.yml
+            CODESTRA_UPSTREAM_SANITIZATION.json
           git diff --cached --check
 
           python3 - <<'PY'
