@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "2.0.0",
+  "repository": "appolon1908-hue/Codestra-OpenBao",
+  "classification": "vendor-operator-ui",
+  "targetBranch": "development",
+  "adoptionMode": "native-operator-theme-sso",
+  "domain": "bao.codestra.media",
+  "domainStatus": "source-declared-restricted-verification-required",
+  "requirements": {
+    "identitySSO": true,
+    "session": true,
+    "logout": true,
+    "logoutAll": true,
+    "browserTokenStorageProhibited": true,
+    "supportedTheme": true,
+    "sharedHeaderFooter": false,
+    "domainRegistry": true,
+    "operatorAccess": true,
+    "audit": true,
+    "rollback": true
+  },
+  "status": "blocked-pending-orbit-authority-and-operator-certification",
+  "blockers": [
+    "SDK-repository pull request 75 must resolve all current review findings, pass exact-head checks, receive independent approval, merge through protection, and publish post-merge packages tied to the accepted SHA.",
+    "The private operator hostname, DNS, TLS, source restriction, and edge handoff must be verified without exposing native OpenBao ports 8200 or 8201 publicly.",
+    "Supported OpenBao OIDC must be certified for login, session expiry, logout, logout-all, token revocation, least-privilege policy changes, and break-glass separation.",
+    "Native secret engines, namespaces, policies, leases, audit devices, seal and unseal, initialization, upgrades, recovery, and rollback must remain intact; core OpenBao source must not be forked for corporate chrome.",
+    "Brand, content, asset, navigation, and footer APIs must never return secret values, tokens, seal or leader state, policy material, initialization data, recovery material, credentials, or browser-stored bearer tokens.",
+    "Monitoring, upgrade, downgrade, backup, recovery, and rollback evidence must pass in staging before any production operator-surface promotion."
+  ]
+}
