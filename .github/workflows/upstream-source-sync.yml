@@ -209,7 +209,12 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           SYNC_BRANCH="automation/openbao-upstream-${UPSTREAM_SHA:0:12}"
           git switch -C "$SYNC_BRANCH"
-          git add -A upstream CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json
+          # The repository-level secret-material ignores intentionally match key and
+          # certificate extensions everywhere. The imported upstream tree contains
+          # test fixtures with those extensions, so add the already-sanitized tree
+          # explicitly; otherwise the commit would not represent UPSTREAM_SHA.
+          git add -f -A upstream
+          git add -A CODESTRA_UPSTREAM_LOCK.json CODESTRA_UPSTREAM_SANITIZATION.json
           git diff --cached --quiet && exit 0
           git commit -m "vendor: sync sanitized official OpenBao upstream ${UPSTREAM_SHA}"
           git push --force origin "HEAD:${SYNC_BRANCH}"
