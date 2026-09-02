@@ -27,7 +27,9 @@ negative tests:
 | Workload identity and namespace inventory | `config/policies/workload-identities.v1.json` |
 | Deterministic generator | `scripts/generate_workload_authority.py` |
 | Generated role authority | `config/workload-secret-authority.v1.json` |
+| Generated policy source | `scripts/generate_workload_policies.py` |
 | Generated policy index | `config/policies/generated-policy-index.v1.json` |
+| Separate monitoring API client contract | `codestra/runtime-v1/keycloak-monitoring-readonly.v1.json` |
 | Fail-closed validator | `scripts/validate_workload_secret_authority.py` |
 | Mutation and isolation tests | `tests/test_workload_secret_authority.py` |
 | Repository-wide policy/integration CI | `.github/workflows/policy-tests.yml` |
@@ -35,8 +37,8 @@ negative tests:
 
 Generated artifacts must match the reviewed inventory exactly. Hand-edited
 generated output, an unrecognized identity, a broad path, a cross-environment
-claim, runtime activation, write capability or missing audit/rotation control
-must fail validation.
+claim, runtime activation, unauthorized write capability or missing
+audit/rotation control must fail validation.
 
 ## Admitted workload identities
 
@@ -53,9 +55,21 @@ paths:
   social, advertising, AI, telephony and crawler families;
 - `n8n-automation` — exact Middleware client and orchestration credentials only;
 - `odoo-integration` — exact Odoo integration credentials only;
-- `prometheus-openbao` — only the private OpenBao metrics-client material. Its
-  Keycloak client requests the exact `metrics.read` scope and no broader
-  monitoring or secret scope.
+- `prometheus-openbao` — private OpenBao metrics-client material plus the
+  generated `sys/metrics` read capability. This OpenBao workload identity is
+  bound to audience `openbao`, `azp=prometheus-openbao`, and the exact
+  environment claim. It does not own or request the Keycloak `metrics.read`
+  client scope.
+
+### Separate monitoring API client
+
+`monitoring-readonly` is a distinct Keycloak service client recorded in
+`codestra/runtime-v1/keycloak-monitoring-readonly.v1.json`. It is bound to
+audience `middleware-api`, has no default client scopes, and may explicitly
+request the optional `health.read` and `metrics.read` scopes. Those scopes
+authorize the bounded monitoring API contract; they do not grant access to an
+OpenBao secret path or make `monitoring-readonly` equivalent to
+`prometheus-openbao`.
 
 ### Provider adapter identities
 
@@ -82,16 +96,28 @@ Every generated role is bound to:
 - exact `azp` service identity;
 - exact `codestra_environment` claim;
 - environment-prefixed `codestra/<environment>/...` paths;
-- `read` only;
-- no default policy;
 - five-minute token TTL and maximum TTL;
 - explicit owner, purpose, rotation, revocation and audit requirements;
 - `runtimeBindingAuthorized=false`;
 - `providerBusinessEffectsEnabled=false`.
 
+The role authority records `read` as the admitted secret operation. The
+deterministic HCL generator expands that narrow authority into these exact
+capabilities only:
+
+- `read` on the admitted `codestra/data/...` secret prefixes;
+- `read` and `list` on the matching admitted `codestra/metadata/...` prefixes,
+  solely so a consumer can traverse its own KV metadata;
+- `read` on `auth/token/lookup-self`;
+- `update` on `auth/token/renew-self` and `auth/token/revoke-self`, solely for
+  the workload's own token lifecycle;
+- `read` on `sys/metrics` only for `prometheus-openbao`.
+
 No identity may receive an environment root, cross-service namespace,
-cross-adapter namespace, recursive platform-wide read, `list`, `create`,
-`update`, `delete`, `patch`, `sudo` or policy-management capability.
+cross-adapter namespace, recursive platform-wide read, secret-data `list`,
+secret-data `create` or `update`, `delete`, `patch`, `sudo`, token creation or
+policy-management capability. The exact metadata-list and self-token lifecycle
+exceptions above are not general write authority and must not be broadened.
 
 ## Secret material rules
 

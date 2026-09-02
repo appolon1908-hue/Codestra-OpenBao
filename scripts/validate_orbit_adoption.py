@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, NoReturn, Sequence
@@ -173,13 +174,25 @@ def validate_schema(schema: Any) -> None:
         _fail("repository pattern drift")
     if _property(schema, "targetBranch").get("pattern") != TARGET_BRANCH_PATTERN:
         _fail("target-branch pattern drift")
-    if _string_set(_property(schema, "classification").get("enum"), field="classification enum") != EXPECTED_CLASSIFICATIONS:
+    if _string_set(
+        _property(schema, "classification").get("enum"),
+        field="classification enum",
+    ) != EXPECTED_CLASSIFICATIONS:
         _fail("classification enum drift")
-    if _string_set(_property(schema, "adoptionMode").get("enum"), field="adoption mode enum") != EXPECTED_ADOPTION_MODES:
+    if _string_set(
+        _property(schema, "adoptionMode").get("enum"),
+        field="adoption mode enum",
+    ) != EXPECTED_ADOPTION_MODES:
         _fail("adoption-mode enum drift")
-    if _string_set(_property(schema, "domainStatus").get("enum"), field="domain status enum") != EXPECTED_DOMAIN_STATUSES:
+    if _string_set(
+        _property(schema, "domainStatus").get("enum"),
+        field="domain status enum",
+    ) != EXPECTED_DOMAIN_STATUSES:
         _fail("domain-status enum drift")
-    if _string_set(_property(schema, "status").get("enum"), field="status enum") != EXPECTED_STATUSES:
+    if _string_set(
+        _property(schema, "status").get("enum"),
+        field="status enum",
+    ) != EXPECTED_STATUSES:
         _fail("status enum drift")
 
     requirements = _property(schema, "requirements")
@@ -286,9 +299,9 @@ def validate_files(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    if argv:
-        _fail("this validator does not accept command-line arguments")
     try:
+        if argv:
+            _fail("this validator does not accept command-line arguments")
         validate_files()
     except OrbitAdoptionValidationError as exc:
         print(f"OPENBAO_ORBIT_ADOPTION=FAIL ERROR={exc}")
@@ -298,4 +311,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

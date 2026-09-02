@@ -9,6 +9,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts/validate_orbit_adoption.py"
@@ -40,6 +41,16 @@ class OrbitAdoptionTests(unittest.TestCase):
         VALIDATOR.validate_schema(copy.deepcopy(self.schema))
         VALIDATOR.validate_manifest(copy.deepcopy(self.manifest))
         VALIDATOR.validate_files()
+
+    def test_cli_rejects_unsupported_arguments(self) -> None:
+        with patch("builtins.print") as output:
+            status = VALIDATOR.main(["unexpected"])
+        self.assertEqual(status, 1)
+        output.assert_called_once()
+        self.assertIn(
+            "does not accept command-line arguments",
+            output.call_args.args[0],
+        )
 
     def test_unapproved_target_branch_is_rejected(self) -> None:
         self.assert_manifest_rejected(
