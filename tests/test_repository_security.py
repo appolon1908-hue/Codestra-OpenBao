@@ -135,6 +135,12 @@ class RepositorySecurityTests(unittest.TestCase):
 
     def test_workflow_actions_are_immutable(self) -> None:
         VALIDATOR.validate_all_workflows()
+        self.assertIn(
+            "appolon1908-hue/Codestra-Telemetry/.github/workflows/"
+            "reusable-validate-service-contract.yml@"
+            "c35d880a730ca5206d445e8a9a688cb465ae2ad4",
+            VALIDATOR.APPROVED_ACTION_REFERENCES,
+        )
         mutable = self.sync_source.replace(
             "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
             "actions/checkout@main",
