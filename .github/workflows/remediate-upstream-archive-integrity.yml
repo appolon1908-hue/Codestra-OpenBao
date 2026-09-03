@@ -1,0 +1,134 @@
+name: One-shot OpenBao archive-integrity importer remediation
+
+on:
+  push:
+    branches:
+      - sync/openbao-upstream-dd9c19c37a878cf4a81b18efb8d6f0599c7da923-79016e7d0a693149fde2878f09ff9861011e66a3
+    paths:
+      - .github/workflows/remediate-upstream-archive-integrity.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-openbao-archive-integrity-remediation
+  cancel-in-progress: false
+
+jobs:
+  patch-importer:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact remediation head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Wire deterministic archive repair into persistent importer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/upstream-source-sync.yml')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(source: str, replacement: str, label: str) -> None:
+              global text
+              count = text.count(source)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one source occurrence, found {count}')
+              text = text.replace(source, replacement, 1)
+
+          replace_once(
+              "      - .github/workflows/upstream-source-sync.yml\n",
+              "      - .github/workflows/upstream-source-sync.yml\n      - scripts/repair_upstream_archive_integrity.py\n",
+              'workflow trigger path',
+          )
+          replace_once(
+              "          import hashlib, json, os, re, subprocess, tempfile\n",
+              "          import hashlib, json, os, re, subprocess, sys, tempfile\n",
+              'inline importer sys import',
+          )
+          replace_once(
+              "          from pathlib import Path\n\n          sanitizations=[]\n",
+              "          from pathlib import Path\n\n          sys.path.insert(0, str((Path.cwd() / 'scripts').resolve(strict=True)))\n          from repair_upstream_archive_integrity import repair_known_upstream_archives\n\n          sanitizations=[]\n",
+              'archive repair module import',
+          )
+
+          scanner_marker = "          # Run the exact pinned scanner used by required CI. Its default rules\n"
+          repair_block = """          raw_archive_integrity_repairs = repair_known_upstream_archives(
+              Path('upstream'),
+              repository_root=workspace_root,
+          )
+          manifested_paths = {item['path'] for item in sanitizations}
+          archive_integrity_repairs = []
+          for repair in raw_archive_integrity_repairs:
+              if repair['changed'] and repair['repository_path'] not in manifested_paths:
+                  raise RuntimeError(
+                      'archive checksum repair changed a path without a prior sanitization record: '
+                      + repair['repository_path']
+                  )
+              archive_integrity_repairs.append({
+                  'archive': repair['repository_path'],
+                  'archive_sha256_after': repair['archive_sha256_after'],
+                  'archive_sha256_before': repair['archive_sha256_before'],
+                  'archive_size_preserved': repair['archive_size_preserved'],
+                  'focused_test': repair['focused_test'],
+                  'member': repair['member'],
+                  'member_order_and_metadata_preserved': (
+                      repair['member_order_preserved']
+                      and repair['member_metadata_preserved']
+                  ),
+                  'member_payloads_changed': (
+                      [repair['checksum_member']] if repair['changed'] else []
+                  ),
+                  'reason': (
+                      'recompute embedded SHA256SUMS after deterministic '
+                      'private-key fixture sanitization'
+                  ),
+                  'sanitized_member_sha256': repair['actual_sha256'],
+                  'secret_values_recorded': False,
+                  'stale_embedded_sha256': repair['stale_sha256'],
+              })
+
+"""
+          replace_once(
+              scanner_marker,
+              repair_block + scanner_marker,
+              'archive repair invocation',
+          )
+          replace_once(
+              "              'sanitization_count': len(sanitizations),\n              'sanitization_scope':",
+              "              'sanitization_count': len(sanitizations),\n              'archive_integrity_repairs': archive_integrity_repairs,\n              'archive_integrity_verified': all(\n                  item['archive_size_preserved']\n                  and item['member_order_and_metadata_preserved']\n                  and item['secret_values_recorded'] is False\n                  for item in archive_integrity_repairs\n              ),\n              'sanitization_scope':",
+              'archive repair lock evidence',
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate repaired importer and checked-in archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/repair_upstream_archive_integrity.py tests/security/test_upstream_archive_integrity.py
+          python3 -m unittest tests.security.test_upstream_archive_integrity -v
+          python3 scripts/repair_upstream_archive_integrity.py --check >/tmp/openbao-archive-integrity.json
+          git diff --check
+
+      - name: Commit exact remediation and remove one-shot workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          rm .github/workflows/remediate-upstream-archive-integrity.yml
+          git config user.name 'codestra-openbao-remediation'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/upstream-source-sync.yml .github/workflows/remediate-upstream-archive-integrity.yml
+          git diff --cached --check
+          git commit -m 'fix(openbao): persist archive-aware upstream checksum repair'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
