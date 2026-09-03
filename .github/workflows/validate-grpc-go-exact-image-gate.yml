@@ -1,0 +1,99 @@
+name: Validate OpenBao grpc-go exact-image gate
+
+on:
+  pull_request:
+    branches:
+      - development
+    paths:
+      - "upstream/go.mod"
+      - "upstream/go.sum"
+      - "codestra/vulnerability-gates/grpc-go-cve-2026-84304.v1.json"
+      - "scripts/validate_grpc_go_exact_image_gate.py"
+      - "tests/test_grpc_go_exact_image_gate.py"
+      - "docs/security/GRPC-GO-CVE-2026-84304-PRODUCTION-GATE.md"
+      - ".github/workflows/validate-grpc-go-exact-image-gate.yml"
+  push:
+    branches:
+      - development
+      - test
+      - staging
+      - production
+      - main
+    paths:
+      - "upstream/go.mod"
+      - "upstream/go.sum"
+      - "codestra/vulnerability-gates/grpc-go-cve-2026-84304.v1.json"
+      - "scripts/validate_grpc_go_exact_image_gate.py"
+      - "tests/test_grpc_go_exact_image_gate.py"
+      - "docs/security/GRPC-GO-CVE-2026-84304-PRODUCTION-GATE.md"
+      - ".github/workflows/validate-grpc-go-exact-image-gate.yml"
+  workflow_dispatch:
+    inputs:
+      require_remediated_image:
+        description: Require exact signed image evidence with grpc-go 1.83.1 or later
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate-source-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Compile and run regression tests
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/validate_grpc_go_exact_image_gate.py
+          python3 tests/test_grpc_go_exact_image_gate.py
+          git diff --check
+
+      - name: Validate source and truthful blocked image state
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/validate_grpc_go_exact_image_gate.py \
+            --report "${RUNNER_TEMP}/grpc-go-exact-image-gate.json"
+
+      - name: Enforce exact remediated image on protected manual gate
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.require_remediated_image }}
+        run: |
+          set -Eeuo pipefail
+          case "${GITHUB_REF}" in
+            refs/heads/development|refs/heads/test|refs/heads/staging|refs/heads/production|refs/heads/main) ;;
+            *) echo "protected branch required" >&2; exit 1 ;;
+          esac
+          python3 scripts/validate_grpc_go_exact_image_gate.py \
+            --require-remediated-image \
+            --report "${RUNNER_TEMP}/grpc-go-remediated-image.json"
+
+      - name: Upload bounded vulnerability evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: openbao-grpc-go-gate-${{ github.sha }}
+          path: ${{ runner.temp }}/grpc-go-*.json
+          if-no-files-found: warn
+          retention-days: 30
