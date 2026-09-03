@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import shutil
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ MODULE_PATH = ROOT / "scripts" / "repair_upstream_archive_integrity.py"
 SPEC = importlib.util.spec_from_file_location("repair_upstream_archive_integrity", MODULE_PATH)
 assert SPEC and SPEC.loader
 REPAIR = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = REPAIR
 SPEC.loader.exec_module(REPAIR)
 
 SOURCE_ARCHIVE = (
