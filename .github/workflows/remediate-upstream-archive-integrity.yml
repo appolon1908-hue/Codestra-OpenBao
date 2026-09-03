@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  patch-importer:
+  stage-validated-blob:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -26,13 +26,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Apply deterministic importer remediation
-        run: python3 scripts/apply_archive_importer_remediation.py
-
-      - name: Validate archive repair and importer wiring
+      - name: Generate and validate persistent importer
         shell: bash
         run: |
           set -Eeuo pipefail
+          python3 scripts/apply_archive_importer_remediation.py
           python3 -m py_compile scripts/repair_upstream_archive_integrity.py tests/security/test_upstream_archive_integrity.py
           python3 -m unittest tests.security.test_upstream_archive_integrity -v
           python3 scripts/repair_upstream_archive_integrity.py --check >/tmp/openbao-archive-integrity.json
@@ -41,16 +39,17 @@ jobs:
           grep -Fq "'archive_integrity_verified': all(" .github/workflows/upstream-source-sync.yml
           git diff --check
 
-      - name: Commit exact remediation and remove one-shot files
+      - name: Publish generated workflow blob at a non-workflow path
         shell: bash
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          rm .github/workflows/remediate-upstream-archive-integrity.yml
-          rm scripts/apply_archive_importer_remediation.py
+          mkdir -p .codestra-generated
+          cp .github/workflows/upstream-source-sync.yml .codestra-generated/upstream-source-sync.yml
+          git checkout -- .github/workflows/upstream-source-sync.yml
           git config user.name codestra-openbao-remediation
           git config user.email github-actions[bot]@users.noreply.github.com
-          git add -A
+          git add .codestra-generated/upstream-source-sync.yml
           git diff --cached --check
-          git commit -m "fix(openbao): persist archive-aware upstream checksum repair"
+          git commit -m "build(openbao): stage validated upstream importer blob"
           git push origin "HEAD:${GITHUB_REF_NAME}"
