@@ -6,6 +6,7 @@ on:
     paths:
       - CODESTRA_UPSTREAM.json
       - .github/workflows/upstream-source-sync.yml
+      - scripts/repair_upstream_archive_integrity.py
   workflow_dispatch:
 
 permissions:
@@ -110,9 +111,12 @@ jobs:
 
           export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA UPSTREAM_BASELINE_TREE
           python3 - <<'PY'
-          import hashlib, json, os, re, subprocess, tempfile
+          import hashlib, json, os, re, subprocess, sys, tempfile
           from datetime import datetime, timezone
           from pathlib import Path
+
+          sys.path.insert(0, str((Path.cwd() / 'scripts').resolve(strict=True)))
+          from repair_upstream_archive_integrity import repair_known_upstream_archives
 
           sanitizations=[]
           workspace_root=Path.cwd().resolve(strict=True)
@@ -350,6 +354,41 @@ jobs:
                   'neutralize secret-shaped values in upstream test/example/documentation fixture while retaining path and provenance'
               )
 
+          raw_archive_integrity_repairs = repair_known_upstream_archives(
+              Path('upstream'),
+              repository_root=workspace_root,
+          )
+          manifested_paths = {item['path'] for item in sanitizations}
+          archive_integrity_repairs = []
+          for repair in raw_archive_integrity_repairs:
+              if repair['changed'] and repair['repository_path'] not in manifested_paths:
+                  raise RuntimeError(
+                      'archive checksum repair changed a path without a prior sanitization record: '
+                      + repair['repository_path']
+                  )
+              archive_integrity_repairs.append({
+                  'archive': repair['repository_path'],
+                  'archive_sha256_after': repair['archive_sha256_after'],
+                  'archive_sha256_before': repair['archive_sha256_before'],
+                  'archive_size_preserved': repair['archive_size_preserved'],
+                  'focused_test': repair['focused_test'],
+                  'member': repair['member'],
+                  'member_order_and_metadata_preserved': (
+                      repair['member_order_preserved']
+                      and repair['member_metadata_preserved']
+                  ),
+                  'member_payloads_changed': (
+                      [repair['checksum_member']] if repair['changed'] else []
+                  ),
+                  'reason': (
+                      'recompute embedded SHA256SUMS after deterministic '
+                      'private-key fixture sanitization'
+                  ),
+                  'sanitized_member_sha256': repair['actual_sha256'],
+                  'secret_values_recorded': False,
+                  'stale_embedded_sha256': repair['stale_sha256'],
+              })
+
           # Run the exact pinned scanner used by required CI. Its default rules
           # cover generic API keys and JWTs beyond the deterministic patterns
           # above. Only fixture-eligible upstream paths may be rewritten. Exact
@@ -562,6 +601,13 @@ jobs:
               'secret_material_allowed_in_git': False,
               'sanitization_manifest': 'CODESTRA_UPSTREAM_SANITIZATION.json',
               'sanitization_count': len(sanitizations),
+              'archive_integrity_repairs': archive_integrity_repairs,
+              'archive_integrity_verified': all(
+                  item['archive_size_preserved']
+                  and item['member_order_and_metadata_preserved']
+                  and item['secret_values_recorded'] is False
+                  for item in archive_integrity_repairs
+              ),
               'sanitization_scope': 'upstream test/example/documentation fixtures only; production/runtime logic is not intentionally modified',
           }
           lock_path.write_text(json.dumps(lock, indent=2) + '\n')
