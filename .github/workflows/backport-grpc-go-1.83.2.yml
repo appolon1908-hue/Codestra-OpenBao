@@ -1,0 +1,84 @@
+name: One-shot grpc-go 1.83.2 backport
+
+on:
+  push:
+    branches:
+      - remediation/openbao-grpc-go-1.83.2-20260903
+    paths:
+      - .github/workflows/backport-grpc-go-1.83.2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: openbao-grpc-go-backport-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact remediation branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: remediation/openbao-grpc-go-1.83.2-20260903
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up reviewed OpenBao Go toolchain
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.25.13'
+          cache: false
+
+      - name: Resolve authenticated minimal module backport
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git merge-base HEAD 2a931043d591e80c00b966c6c658aa8bbe5a9b26)" = "2a931043d591e80c00b966c6c658aa8bbe5a9b26"
+
+          mapfile -t direct_modules < <(
+            grep -Rl --include=go.mod $'^\\s*google.golang.org/grpc v1.82.1$' upstream | sort
+          )
+          printf '%s\n' "${direct_modules[@]}" | diff -u - <(printf '%s\n' upstream/go.mod upstream/sdk/go.mod)
+
+          (
+            cd upstream
+            go get google.golang.org/grpc@v1.83.2
+            test "$(go list -m -f '{{.Version}}' google.golang.org/grpc)" = "v1.83.2"
+            go mod verify
+          )
+          (
+            cd upstream/sdk
+            go get google.golang.org/grpc@v1.83.2
+            test "$(go list -m -f '{{.Version}}' google.golang.org/grpc)" = "v1.83.2"
+            go mod verify
+          )
+
+          mapfile -t changed < <(git diff --name-only | sort)
+          printf '%s\n' "${changed[@]}" | diff -u - <(
+            printf '%s\n' \
+              upstream/go.mod \
+              upstream/go.sum \
+              upstream/sdk/go.mod \
+              upstream/sdk/go.sum
+          )
+          ! grep -R -n $'google.golang.org/grpc v1.82.1' upstream --include=go.mod
+          grep -Fxq $'\tgoogle.golang.org/grpc v1.83.2' upstream/go.mod
+          grep -Fxq $'\tgoogle.golang.org/grpc v1.83.2' upstream/sdk/go.mod
+          grep -Fxq 'google.golang.org/grpc v1.83.2 h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=' upstream/go.sum
+          grep -Fxq 'google.golang.org/grpc v1.83.2/go.mod h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=' upstream/go.sum
+          grep -Fxq 'google.golang.org/grpc v1.83.2 h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=' upstream/sdk/go.sum
+          grep -Fxq 'google.golang.org/grpc v1.83.2/go.mod h1:YPI1hK3kDked6iHvgX3tR0y+nX/qpMFKhPgFsokw1S8=' upstream/sdk/go.sum
+
+      - name: Commit only authenticated module graph changes
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add upstream/go.mod upstream/go.sum upstream/sdk/go.mod upstream/sdk/go.sum
+          test -z "$(git status --porcelain --untracked-files=all | grep -vE '^M  upstream/(go\.(mod|sum)|sdk/go\.(mod|sum))$' || true)"
+          git commit -m 'security(openbao): backport grpc-go 1.83.2 to v2.6.2'
+          git push origin HEAD:remediation/openbao-grpc-go-1.83.2-20260903
