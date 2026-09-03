@@ -167,6 +167,11 @@ def validate_schema(schema: Any) -> None:
         _fail("schema must be a closed object")
     if _string_set(schema.get("required"), field="schema required") != REQUIRED_TOP_LEVEL:
         _fail("schema required fields drift")
+    properties = schema.get("properties")
+    if not isinstance(properties, Mapping):
+        _fail("schema properties must be an object")
+    if frozenset(properties) != ALLOWED_TOP_LEVEL:
+        _fail("schema property names drift")
 
     if _property(schema, "schemaVersion").get("const") != EXPECTED_SCHEMA_VERSION:
         _fail("schema version drift")

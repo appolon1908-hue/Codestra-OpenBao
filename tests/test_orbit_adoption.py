@@ -97,6 +97,12 @@ class OrbitAdoptionTests(unittest.TestCase):
         with self.assertRaises(VALIDATOR.OrbitAdoptionValidationError):
             VALIDATOR.validate_schema(schema)
 
+    def test_schema_cannot_declare_an_unsupported_property(self) -> None:
+        schema = copy.deepcopy(self.schema)
+        schema["properties"]["credentials"] = {"type": "string"}
+        with self.assertRaises(VALIDATOR.OrbitAdoptionValidationError):
+            VALIDATOR.validate_schema(schema)
+
     def test_domain_must_remain_restricted_and_unverified(self) -> None:
         self.assert_manifest_rejected(
             lambda value: value.__setitem__("domainStatus", "registered")
