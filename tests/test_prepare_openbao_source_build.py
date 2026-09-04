@@ -85,6 +85,7 @@ require (
 \tgithub.com/moby/patternmatcher v0.6.0 // indirect
 \tgithub.com/moby/sys/sequential v0.6.0 // indirect
 \tgithub.com/moby/sys/user v0.4.0 // indirect
+\tgoogle.golang.org/grpc v1.83.2
 )
 """
         final_mod = """module example.test/openbao
@@ -96,6 +97,7 @@ require (
 \tgithub.com/moby/patternmatcher v0.6.1 // indirect
 \tgithub.com/moby/sys/sequential v0.7.0 // indirect
 \tgithub.com/moby/sys/user v0.4.1 // indirect
+\tgoogle.golang.org/grpc v1.83.2
 )
 """
         original_sum = "\n".join(MODULE.OLD_SUM_LINES) + "\n"
@@ -137,6 +139,17 @@ require (
     def test_tidy_validation_rejects_go_directive_drift(self) -> None:
         original_mod, original_sum, final_mod, final_sum = self.reviewed_tidy_documents()
         final_mod = final_mod.replace("go 1.25.8", "go 1.26.0")
+        with self.assertRaises(SystemExit):
+            MODULE.validate_tidy_result(
+                original_mod, original_sum, final_mod, final_sum
+            )
+
+    def test_tidy_validation_rejects_reviewed_graph_version_drift(self) -> None:
+        original_mod, original_sum, final_mod, final_sum = self.reviewed_tidy_documents()
+        final_mod = final_mod.replace(
+            "google.golang.org/grpc v1.83.2",
+            "google.golang.org/grpc v1.83.1",
+        )
         with self.assertRaises(SystemExit):
             MODULE.validate_tidy_result(
                 original_mod, original_sum, final_mod, final_sum
