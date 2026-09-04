@@ -35,6 +35,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 concurrency:
   group: openbao-source-image-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -373,7 +376,7 @@ jobs:
             "${IMAGE_REFERENCE}" > "${RUNNER_TEMP}/openbao-source-image/provenance-verification.json"
           test -s "${RUNNER_TEMP}/openbao-source-image/provenance-verification.json"
 
-      - name: Attest SBOM and GitHub build provenance
+      - name: Attest SBOM
         run: |
           set -Eeuo pipefail
           cosign attest --yes \
