@@ -4,8 +4,8 @@
 The imported upstream tree remains byte-for-byte provenance evidence. Builds use this
 small, source-controlled transform to replace the vulnerable indirect archive module.
 The transform fails unless the exact reviewed old module and checksum records exist.
-When the command-line build path is used, Go may reconcile only the reviewed
-transitive module set; any unrelated module or Go-directive change fails closed.
+When the command-line build path is used, Go may reconcile only the reviewed archive
+and grpc-go module families; any unrelated module or Go-directive change fails closed.
 """
 
 from __future__ import annotations
@@ -38,6 +38,20 @@ REVIEWED_TRANSITIVE_VERSIONS = {
     "github.com/moby/sys/sequential": "v0.7.0",
     "github.com/moby/sys/user": "v0.4.1",
 }
+REVIEWED_GRPC_GRAPH_VERSIONS = {
+    "cel.dev/expr": "v0.25.2",
+    "golang.org/x/crypto": "v0.55.0",
+    "golang.org/x/mod": "v0.38.0",
+    "golang.org/x/net": "v0.58.0",
+    "golang.org/x/sync": "v0.22.0",
+    "golang.org/x/sys": "v0.47.0",
+    "golang.org/x/term": "v0.45.0",
+    "golang.org/x/text": "v0.41.0",
+    "golang.org/x/tools": "v0.48.0",
+    "google.golang.org/genproto/googleapis/api": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "google.golang.org/genproto/googleapis/rpc": "v0.0.0-20260526163538-3dc84a4a5aaa",
+    "google.golang.org/grpc": "v1.83.2",
+}
 REVIEWED_TRANSITIVE_SUM_LINES = {
     "github.com/moby/patternmatcher": (
         "github.com/moby/patternmatcher v0.6.1 h1:qlhtafmr6kgMIJjKJMDmMWq7WLkKIo23hsrpR3x084U=",
@@ -64,7 +78,7 @@ REVIEWED_TIDY_MODULES = frozenset(
         "github.com/moby/sys/user",
         "github.com/moby/sys/userns",
         "github.com/sirupsen/logrus",
-        "golang.org/x/sys",
+        *REVIEWED_GRPC_GRAPH_VERSIONS.keys(),
     }
 )
 MODULE_VERSION_RE = re.compile(r"^\s*([^\s]+)\s+(v[^\s]+)(?:\s+//\s+indirect)?\s*$")
@@ -140,9 +154,13 @@ def validate_tidy_result(
 
     if final_versions.get(MODULE) != NEW_VERSION:
         fail(f"tidied go.mod does not select {MODULE} {NEW_VERSION}")
-    for module, version in REVIEWED_TRANSITIVE_VERSIONS.items():
-        if final_versions.get(module) != version:
-            fail(f"tidied go.mod does not select {module} {version}")
+    for module, version in {
+        **REVIEWED_TRANSITIVE_VERSIONS,
+        **REVIEWED_GRPC_GRAPH_VERSIONS,
+    }.items():
+        if module in original_versions or module in final_versions:
+            if final_versions.get(module) != version:
+                fail(f"tidied go.mod does not select {module} {version}")
 
     required_sums = [*NEW_SUM_LINES]
     for lines in REVIEWED_TRANSITIVE_SUM_LINES.values():
