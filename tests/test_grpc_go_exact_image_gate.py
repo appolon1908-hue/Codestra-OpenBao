@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import importlib.util
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +31,10 @@ def valid_evidence() -> dict[str, object]:
         "source_sha": SOURCE_SHA,
         "source_tree": SOURCE_TREE,
         "source_dependency_version": "1.83.2",
+        "archive_module": "github.com/moby/go-archive",
+        "archive_module_version": "0.3.2",
+        "dependency_overlay_sha256": ARTIFACT_SHA,
+        "runtime_target": "distroless",
         "image_repository": "ghcr.io/appolon1908-hue/codestra-openbao",
         "image_reference": (
             "ghcr.io/appolon1908-hue/codestra-openbao@" + IMAGE_DIGEST
@@ -77,11 +80,13 @@ def valid_evidence() -> dict[str, object]:
 
 
 class ExactImageGateTests(unittest.TestCase):
-    def test_source_gate_matches_remediated_go_module(self) -> None:
+    def test_source_gate_matches_remediated_inputs(self) -> None:
         gate = MODULE.load_json(MODULE.GATE_PATH)
         minimum, source_version = MODULE.validate_gate(gate)
         self.assertEqual(minimum, "1.83.1")
         self.assertEqual(source_version, "1.83.2")
+        self.assertEqual(gate["source_build"]["archive_module_version"], "0.3.2")
+        self.assertEqual(gate["source_build"]["docker_target"], "distroless")
         self.assertEqual(gate["exact_image_gate"], "BLOCKED_PENDING_PROTECTED_BUILD")
         self.assertTrue(all(value is False for value in gate["activation"].values()))
 
@@ -113,9 +118,21 @@ class ExactImageGateTests(unittest.TestCase):
             expected_source_tree=SOURCE_TREE,
         )
 
-    def test_old_image_dependency_is_rejected(self) -> None:
+    def test_old_grpc_dependency_is_rejected(self) -> None:
         evidence = valid_evidence()
         evidence["image_dependency_version"] = "1.82.1"
+        with self.assertRaises(ValueError):
+            MODULE.validate_image_evidence(evidence, "1.83.1", "1.83.2")
+
+    def test_old_archive_dependency_is_rejected(self) -> None:
+        evidence = valid_evidence()
+        evidence["archive_module_version"] = "0.2.0"
+        with self.assertRaises(ValueError):
+            MODULE.validate_image_evidence(evidence, "1.83.1", "1.83.2")
+
+    def test_non_distroless_runtime_is_rejected(self) -> None:
+        evidence = valid_evidence()
+        evidence["runtime_target"] = "default"
         with self.assertRaises(ValueError):
             MODULE.validate_image_evidence(evidence, "1.83.1", "1.83.2")
 
