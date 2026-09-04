@@ -26,6 +26,13 @@ WORKFLOW_IDENTITY = (
     "https://github.com/appolon1908-hue/Codestra-OpenBao/"
     ".github/workflows/openbao-source-image-authority.yml@refs/heads/production"
 )
+DISTROLESS_BASE = (
+    "gcr.io/distroless/static:nonroot@sha256:"
+    "f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6"
+)
+ARCHIVE_MODULE = "github.com/moby/go-archive"
+ARCHIVE_VERSION = "0.3.2"
+OVERLAY_SCRIPT = "scripts/prepare_openbao_source_build.py"
 
 
 def fail(message: str) -> None:
@@ -84,7 +91,9 @@ def validate_gate(gate: dict[str, Any]) -> tuple[str, str]:
         raise ValueError("module authority mismatch")
 
     minimum = str(gate.get("minimum_remediated_version", ""))
-    source_version = parse_source_version(ROOT / str(gate.get("source_module_file", "")))
+    source_version = parse_source_version(
+        ROOT / str(gate.get("source_module_file", ""))
+    )
     if version_tuple(source_version) < version_tuple(minimum):
         raise ValueError("source grpc-go dependency is below the remediated version")
     if gate.get("source_dependency_version") != source_version:
@@ -92,11 +101,14 @@ def validate_gate(gate: dict[str, Any]) -> tuple[str, str]:
     if gate.get("source_dependency_gate") != "PASS":
         raise ValueError("remediated source dependency gate must be PASS")
 
-    source_build = gate.get("source_build")
     expected_build = {
         "build_script": "upstream/scripts/build.sh",
+        "dependency_overlay_script": OVERLAY_SCRIPT,
+        "archive_module": ARCHIVE_MODULE,
+        "archive_module_version": ARCHIVE_VERSION,
         "dockerfile": "upstream/Dockerfile",
-        "docker_target": "default",
+        "docker_target": "distroless",
+        "runtime_base": DISTROLESS_BASE,
         "go_version_file": "upstream/.go-version",
         "image_repository": IMAGE_REPOSITORY,
         "validation_workflow": WORKFLOW_PATH,
@@ -104,8 +116,20 @@ def validate_gate(gate: dict[str, Any]) -> tuple[str, str]:
         "protected_environment": "openbao-release",
         "certificate_identity": WORKFLOW_IDENTITY,
     }
-    if source_build != expected_build:
+    if gate.get("source_build") != expected_build:
         raise ValueError("source image build authority mismatch")
+    for relative in (
+        expected_build["build_script"],
+        expected_build["dependency_overlay_script"],
+        expected_build["dockerfile"],
+        expected_build["go_version_file"],
+        expected_build["validation_workflow"],
+    ):
+        if not (ROOT / relative).is_file():
+            raise ValueError(f"source image authority file is missing: {relative}")
+    dockerfile = (ROOT / expected_build["dockerfile"]).read_text(encoding="utf-8")
+    if f"FROM {DISTROLESS_BASE} AS distroless" not in dockerfile:
+        raise ValueError("digest-pinned distroless runtime target is missing")
 
     vex = gate.get("vex")
     if not isinstance(vex, dict):
@@ -123,17 +147,18 @@ def validate_gate(gate: dict[str, Any]) -> tuple[str, str]:
         raise ValueError("VEX expiry must be timezone-aware")
 
     require_false_map(gate.get("activation"), "activation")
-    digest = gate.get("exact_image_digest")
     artifact_fields = (
         "image_sbom_reference",
         "image_provenance_reference",
         "image_signature_reference",
         "image_scan_reference",
     )
+    digest = gate.get("exact_image_digest")
+    image_version = gate.get("image_dependency_version")
     committed_complete = (
         bool(DIGEST_RE.fullmatch(str(digest or "")))
-        and isinstance(gate.get("image_dependency_version"), str)
-        and version_tuple(str(gate["image_dependency_version"])) >= version_tuple(minimum)
+        and isinstance(image_version, str)
+        and version_tuple(image_version) >= version_tuple(minimum)
         and all(nonempty_reference(gate.get(name)) for name in artifact_fields)
     )
     status = gate.get("exact_image_gate")
@@ -181,7 +206,13 @@ def validate_image_evidence(
     if expected_source_tree and source_tree != expected_source_tree:
         raise ValueError("image evidence source tree differs from protected source")
     if evidence.get("source_dependency_version") != source_version:
-        raise ValueError("image evidence dependency version differs from source")
+        raise ValueError("image evidence grpc-go version differs from protected source")
+    if evidence.get("archive_module") != ARCHIVE_MODULE:
+        raise ValueError("image evidence archive-module authority mismatch")
+    if evidence.get("archive_module_version") != ARCHIVE_VERSION:
+        raise ValueError("image evidence archive module is not security-fixed")
+    if evidence.get("runtime_target") != "distroless":
+        raise ValueError("image evidence runtime target is not distroless")
 
     digest = str(evidence.get("image_digest", ""))
     if not DIGEST_RE.fullmatch(digest):
@@ -192,10 +223,10 @@ def validate_image_evidence(
         raise ValueError("image reference is not bound to the exact digest")
     if evidence.get("platform") != "linux/amd64":
         raise ValueError("only the reviewed linux/amd64 image is admissible")
-    image_version = str(evidence.get("image_dependency_version", ""))
-    if version_tuple(image_version) < version_tuple(minimum):
+    image_grpc = str(evidence.get("image_dependency_version", ""))
+    if version_tuple(image_grpc) < version_tuple(minimum):
         raise ValueError("image contains a vulnerable grpc-go version")
-    if image_version != source_version:
+    if image_grpc != source_version:
         raise ValueError("image grpc-go version differs from protected source")
 
     sbom = require_artifact(evidence.get("sbom"), "SBOM")
@@ -270,6 +301,8 @@ def main() -> int:
         "cve": "CVE-2026-84304",
         "minimum_remediated_version": minimum,
         "source_dependency_version": source_version,
+        "archive_module_version": ARCHIVE_VERSION,
+        "runtime_target": "distroless",
         "source_dependency_remediated": True,
         "protected_exact_image_evidence_valid": evidence_valid,
         "repository_exact_image_gate": gate["exact_image_gate"],
@@ -282,6 +315,8 @@ def main() -> int:
             encoding="utf-8",
         )
     print(f"OPENBAO_GRPC_GO_SOURCE_VERSION={source_version}")
+    print(f"OPENBAO_ARCHIVE_MODULE_VERSION={ARCHIVE_VERSION}")
+    print("OPENBAO_RUNTIME_TARGET=DISTROLESS")
     print("OPENBAO_GRPC_GO_SOURCE_REMEDIATED=PASS")
     print(
         "OPENBAO_GRPC_GO_PROTECTED_IMAGE_EVIDENCE="
