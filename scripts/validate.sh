@@ -15,7 +15,8 @@ for validator in \
   scripts/validate_codestra_openbao.py \
   scripts/validate_codestra_openbao_oidc.py \
   scripts/validate_codestra_review_boundaries.py \
-  scripts/validate_workload_secret_authority.py; do
+  scripts/validate_workload_secret_authority.py \
+  scripts/validate_orbit_adoption.py; do
   python3 "$validator"
 done
 
@@ -28,7 +29,13 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 
-for root in (Path('config'), Path('openbao'), Path('plugins'), Path('artifacts/supply-chain')):
+for root in (
+    Path('config'),
+    Path('openbao'),
+    Path('plugins'),
+    Path('orbit'),
+    Path('artifacts/supply-chain'),
+):
     for path in root.rglob('*.json'):
         json.loads(path.read_text(encoding='utf-8'))
 print('OPENBAO_JSON_VALIDATION=PASS')

@@ -3,26 +3,36 @@
 This repository is the canonical Git authority for Codestra OpenBao policy,
 authentication, server configuration, recovery automation, monitoring and
 reviewed deployment evidence. The canonical hostname is
-`bao.codestra.media`; the current DNS target is `37.27.128.39`.
+`bao.codestra.media`; the currently recorded DNS target is `37.27.128.39`.
 
 The source is deliberately fail-closed. `runtimeApplyAuthorized=false` remains
 set while runtime identity, staging, backup/restore, HA, host-memory and
 production preflight gates are incomplete. Merging source does not initialize
 OpenBao, apply a policy, migrate a secret, deploy a container or enable a
-provider/business effect.
+provider or business effect.
 
 ## Authority and promotion
 
-All implementation work starts from `development` and follows only:
+All implementation work admitted into `development` must use one of these
+reviewed branch classes:
 
 ```text
-remediation/openbao-production-completion-v1
-  -> development -> test -> staging -> production -> main
+remediation/*
+sync/openbao-upstream-*
 ```
 
-Protected branches must not be force-pushed or bypassed. The stable required
-check names are declared in `.github/workflows/validate.yml`, `security.yml`,
-`policy-tests.yml` and `image-build.yml`.
+Protected promotion then follows only:
+
+```text
+development -> test -> staging -> production -> main
+```
+
+Protected branches must not be force-pushed or bypassed. Documentation,
+feature, security and integration work created under another branch prefix
+must be rebuilt on a current `remediation/*` head before it can target
+`development`. The stable required check names are declared in
+`.github/workflows/validate.yml`, `security.yml`, `policy-tests.yml` and
+`image-build.yml`.
 
 ## Current immutable upstream
 
@@ -33,6 +43,32 @@ check names are declared in `.github/workflows/validate.yml`, `security.yml`,
 
 `CODESTRA_UPSTREAM.json` is the machine-readable authority. Supply-chain
 evidence and checksums are under `artifacts/supply-chain/`.
+
+## Repository map
+
+- `REPOSITORY_PROFILE.md` defines ownership, integration and runtime
+  boundaries.
+- `REPO_AUTHORITY.md` defines hostname, exposure, branch and promotion
+  authority.
+- `docs/PLATFORM-API-SECRETS-V2.md` maps the implemented workload-secret
+  authority without authorizing runtime application.
+- `orbit/adoption-manifest.json` records the restricted operator-interface
+  adoption contract.
+- `docs/production/OPENBAO-PRODUCTION-CERTIFICATION.md` records production
+  blockers and certification evidence.
+
+## Orbit adoption
+
+Codestra OpenBao is classified as a `vendor-operator-ui` consumer using
+`operator-theme-sso`. The manifest remains `blocked`: it does not certify the
+external Orbit package authority, domain activation, operator SSO, native
+behavior preservation, staging evidence or production deployment.
+
+The repository validates the manifest locally with
+`scripts/validate_orbit_adoption.py`. A passing source check proves only that
+the consumer contract is fail-closed and internally consistent. It never
+installs a package, modifies the native OpenBao interface, publishes a domain
+or changes runtime state.
 
 ## Local validation
 
@@ -45,8 +81,8 @@ scripts/integration_test.sh
 scripts/integration_test_jti_plugin.sh
 ```
 
-The integration tests use ephemeral local OpenBao dev containers. They do
-not contact or mutate a deployed environment.
+The integration tests use ephemeral local OpenBao development containers. They
+do not contact or mutate a deployed environment.
 
 ## Runtime safety
 
@@ -61,6 +97,3 @@ not contact or mutate a deployed environment.
   out of scope and must remain unchanged.
 - Secret availability never enables email, SMS, dialing, Odoo writes, n8n
   external effects, publishing, advertising, trading or payments.
-
-Production status and blockers are recorded in
-`docs/production/OPENBAO-PRODUCTION-CERTIFICATION.md`.
