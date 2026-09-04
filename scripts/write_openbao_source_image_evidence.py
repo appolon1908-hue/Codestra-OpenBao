@@ -12,6 +12,7 @@ from typing import Any
 
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+ARCHIVE_MODULE = "github.com/moby/go-archive"
 
 
 def sha256(path: Path) -> str:
@@ -43,12 +44,9 @@ def vulnerability_counts(path: Path) -> tuple[int, int, bool]:
                 continue
             vulnerability_id = str(vulnerability.get("VulnerabilityID", ""))
             severity = str(vulnerability.get("Severity", "")).upper()
-            if vulnerability_id == "CVE-2026-84304":
-                cve_present = True
-            if severity == "CRITICAL":
-                critical += 1
-            elif severity == "HIGH":
-                high += 1
+            cve_present = cve_present or vulnerability_id == "CVE-2026-84304"
+            critical += severity == "CRITICAL"
+            high += severity == "HIGH"
     return critical, high, cve_present
 
 
@@ -58,6 +56,8 @@ def main() -> int:
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--image-digest", required=True)
     parser.add_argument("--grpc-version", required=True)
+    parser.add_argument("--archive-version", required=True)
+    parser.add_argument("--dependency-overlay", type=Path, required=True)
     parser.add_argument("--sbom", type=Path, required=True)
     parser.add_argument("--scan", type=Path, required=True)
     parser.add_argument("--signature-verification", type=Path, required=True)
@@ -71,10 +71,18 @@ def main() -> int:
         raise SystemExit("source SHA/tree must be full lowercase Git object IDs")
     if not DIGEST_RE.fullmatch(args.image_digest):
         raise SystemExit("image digest must be sha256:<64 lowercase hex>")
-    if not re.fullmatch(r"\d+\.\d+\.\d+", args.grpc_version):
-        raise SystemExit("grpc-go version must be a semantic version without a v prefix")
+    for label, version in (("grpc-go", args.grpc_version), ("archive", args.archive_version)):
+        if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+            raise SystemExit(f"{label} version must be a semantic version without v")
+    if args.archive_version != "0.3.2":
+        raise SystemExit("archive module version must equal reviewed v0.3.2")
     if args.run_id <= 0 or args.run_attempt <= 0:
         raise SystemExit("workflow run identity must be positive")
+    overlay = load_json(args.dependency_overlay)
+    if not isinstance(overlay, dict) or overlay.get("status") != "PASS":
+        raise SystemExit("dependency overlay evidence is missing or invalid")
+    if overlay.get("module") != ARCHIVE_MODULE or overlay.get("new_version") != "0.3.2":
+        raise SystemExit("dependency overlay does not bind reviewed archive module")
 
     critical, high, cve_present = vulnerability_counts(args.scan)
     image_repository = "ghcr.io/appolon1908-hue/codestra-openbao"
@@ -88,6 +96,10 @@ def main() -> int:
         "source_sha": args.source_sha,
         "source_tree": args.source_tree,
         "source_dependency_version": args.grpc_version,
+        "archive_module": ARCHIVE_MODULE,
+        "archive_module_version": args.archive_version,
+        "dependency_overlay_sha256": sha256(args.dependency_overlay),
+        "runtime_target": "distroless",
         "image_repository": image_repository,
         "image_reference": f"{image_repository}@{args.image_digest}",
         "image_digest": args.image_digest,
