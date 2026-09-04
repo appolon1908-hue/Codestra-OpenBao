@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 install_root="${OPENBAO_CI_TOOL_DIR:-${RUNNER_TEMP:-/tmp}/codestra-openbao-tools}"
 bin_dir="$install_root/bin"
 download_dir="$install_root/downloads"
@@ -69,4 +70,20 @@ if [[ -n "${GITHUB_PATH:-}" ]]; then
   printf '%s\n' "$bin_dir" >> "$GITHUB_PATH"
 else
   printf 'OPENBAO_CI_TOOL_PATH=%s\n' "$bin_dir"
+fi
+
+# The reviewed upstream importer sanitizes a Raft snapshot test archive that
+# contains its own SHA256SUMS member. Load the narrow sitecustomize hook only
+# for that workflow so the checksum is repaired immediately after the inline
+# sanitizer writes the archive and before final provenance evidence is emitted.
+if [[ "${GITHUB_WORKFLOW:-}" == "Codestra Upstream Source Sync" ]]; then
+  hook_dir="$repo_root/scripts/upstream_import_site"
+  [[ -f "$hook_dir/sitecustomize.py" && -f "$hook_dir/repair.py" ]]
+  if [[ -n "${GITHUB_ENV:-}" ]]; then
+    printf 'PYTHONPATH=%s%s%s\n' \
+      "$hook_dir" "${PYTHONPATH:+:}" "${PYTHONPATH:-}" >> "$GITHUB_ENV"
+    printf 'PYTHONNOUSERSITE=1\n' >> "$GITHUB_ENV"
+  else
+    printf 'OPENBAO_UPSTREAM_IMPORT_PYTHONPATH=%s\n' "$hook_dir"
+  fi
 fi

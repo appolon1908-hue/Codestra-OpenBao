@@ -16,13 +16,15 @@ expected_environment="${OPENBAO_APPROVAL_ENVIRONMENT:-openbao-${environment}}"
    "$expected_environment" == "openbao-${environment}-backup" || \
    "$expected_environment" == "openbao-${environment}-restore" || \
    ( "$environment" == production && "$expected_environment" == openbao-release ) ]]
+
 approvals="$(gh api "repos/${repository}/actions/runs/${run_id}/approvals")"
 jq -e \
   --arg reviewer "$required_reviewer" \
   --arg environment "$expected_environment" '
-  any(.;
+  type == "array" and
+  any(.[];
     .state == "approved" and
-    (.user.login // .reviewer.login) == $reviewer and
+    (.user.login // .reviewer.login // "") == $reviewer and
     any(.environments[]?; .name == $environment)
   )
 ' <<<"$approvals" >/dev/null
