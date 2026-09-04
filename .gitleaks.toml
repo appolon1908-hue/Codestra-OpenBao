@@ -38,3 +38,10 @@ paths = [
   '''^upstream/sdk/helper/certutil/types\.go$''',
 ]
 regexes = ['''(?:result\.)?[Pp]rivateKeyType = (?:EC|RSA|Ed25519)PrivateKey''']
+
+[[allowlists]]
+description = "Public Go module pseudo-version for the reviewed grpc-go genproto graph; exact dependency-map path and literal line reviewed 2026-09-04 by platform-security."
+condition = "AND"
+regexTarget = "line"
+paths = ['''^scripts/prepare_openbao_source_build\.py$''']
+regexes = ['''^\s*"google\.golang\.org/genproto/googleapis/(?:api|rpc)": "v0\.0\.0-20260526163538-3dc84a4a5aaa",\s*$''']
