@@ -18,7 +18,7 @@ class SourceBuildPatchTests(unittest.TestCase):
     def create_source(self, directory: str) -> Path:
         source = Path(directory)
         source.joinpath("go.mod").write_text(
-            "module example.test/openbao\n\nrequire (\n"
+            "module example.test/openbao\n\ngo 1.25.8\n\nrequire (\n"
             + MODULE.OLD_MOD_LINE
             + "\n)\n",
             encoding="utf-8",
@@ -37,6 +37,7 @@ class SourceBuildPatchTests(unittest.TestCase):
             evidence = MODULE.apply(source)
             self.assertEqual(evidence["status"], "PASS")
             self.assertEqual(evidence["new_version"], "0.3.2")
+            self.assertFalse(evidence["go_mod_tidy_performed"])
             go_mod = source.joinpath("go.mod").read_text(encoding="utf-8")
             go_sum = source.joinpath("go.sum").read_text(encoding="utf-8")
             self.assertIn(MODULE.NEW_MOD_LINE, go_mod)
@@ -73,6 +74,73 @@ class SourceBuildPatchTests(unittest.TestCase):
             )
             with self.assertRaises(SystemExit):
                 MODULE.apply(source)
+
+    def reviewed_tidy_documents(self) -> tuple[str, str, str, str]:
+        original_mod = """module example.test/openbao
+
+go 1.25.8
+
+require (
+\tgithub.com/moby/go-archive v0.2.0 // indirect
+\tgithub.com/moby/patternmatcher v0.6.0 // indirect
+\tgithub.com/moby/sys/sequential v0.6.0 // indirect
+\tgithub.com/moby/sys/user v0.4.0 // indirect
+)
+"""
+        final_mod = """module example.test/openbao
+
+go 1.25.8
+
+require (
+\tgithub.com/moby/go-archive v0.3.2 // indirect
+\tgithub.com/moby/patternmatcher v0.6.1 // indirect
+\tgithub.com/moby/sys/sequential v0.7.0 // indirect
+\tgithub.com/moby/sys/user v0.4.1 // indirect
+)
+"""
+        original_sum = "\n".join(MODULE.OLD_SUM_LINES) + "\n"
+        final_lines = [*MODULE.NEW_SUM_LINES]
+        for lines in MODULE.REVIEWED_TRANSITIVE_SUM_LINES.values():
+            final_lines.extend(lines)
+        final_sum = "\n".join(final_lines) + "\n"
+        return original_mod, original_sum, final_mod, final_sum
+
+    def test_tidy_validation_accepts_only_reviewed_transitive_updates(self) -> None:
+        original_mod, original_sum, final_mod, final_sum = self.reviewed_tidy_documents()
+        changes = MODULE.validate_tidy_result(
+            original_mod, original_sum, final_mod, final_sum
+        )
+        self.assertEqual(
+            changes["go_mod_changed_modules"],
+            sorted(
+                {
+                    MODULE.MODULE,
+                    "github.com/moby/patternmatcher",
+                    "github.com/moby/sys/sequential",
+                    "github.com/moby/sys/user",
+                }
+            ),
+        )
+
+    def test_tidy_validation_rejects_unreviewed_module_change(self) -> None:
+        original_mod, original_sum, final_mod, final_sum = self.reviewed_tidy_documents()
+        final_mod = final_mod.replace(
+            ")\n",
+            "\tunreviewed.example/module v9.9.9 // indirect\n)\n",
+        )
+        final_sum += "unreviewed.example/module v9.9.9 h1:example=\n"
+        with self.assertRaises(SystemExit):
+            MODULE.validate_tidy_result(
+                original_mod, original_sum, final_mod, final_sum
+            )
+
+    def test_tidy_validation_rejects_go_directive_drift(self) -> None:
+        original_mod, original_sum, final_mod, final_sum = self.reviewed_tidy_documents()
+        final_mod = final_mod.replace("go 1.25.8", "go 1.26.0")
+        with self.assertRaises(SystemExit):
+            MODULE.validate_tidy_result(
+                original_mod, original_sum, final_mod, final_sum
+            )
 
 
 if __name__ == "__main__":
