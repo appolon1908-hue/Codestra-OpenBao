@@ -13,7 +13,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 GATE_PATH = ROOT / "codestra" / "vulnerability-gates" / "grpc-go-cve-2026-84304.v1.json"
-VERSION_RE = re.compile(r"(?m)^\s*google\.golang\.org/grpc\s+v(\d+\.\d+\.\d+)(?:\s|$)")
+VERSION_RE = re.compile(
+    r"(?m)^\s*(?:require\s+)?google\.golang\.org/grpc\s+v(\d+\.\d+\.\d+)(?:\s|$)"
+)
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 HEX_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -139,7 +141,10 @@ def validate_gate(gate: dict[str, Any]) -> tuple[str, str]:
         if not committed_complete:
             raise ValueError("exact image gate claims PASS without complete committed evidence")
     elif status == "BLOCKED_PENDING_PROTECTED_BUILD":
-        if any(gate.get(name) is not None for name in ("exact_image_digest", "image_dependency_version", *artifact_fields)):
+        if any(
+            gate.get(name) is not None
+            for name in ("exact_image_digest", "image_dependency_version", *artifact_fields)
+        ):
             raise ValueError("blocked image gate must not carry partial artifact authority")
     else:
         raise ValueError("unsupported exact image gate state")
@@ -203,11 +208,17 @@ def validate_image_evidence(
         raise ValueError("CVE-2026-84304 remains present in the image scan")
     if scan.get("critical_count") != 0 or scan.get("high_count") != 0:
         raise ValueError("critical/high image vulnerabilities remain unresolved")
-    if signature.get("verified") is not True or signature.get("certificate_identity") != WORKFLOW_IDENTITY:
+    if (
+        signature.get("verified") is not True
+        or signature.get("certificate_identity") != WORKFLOW_IDENTITY
+    ):
         raise ValueError("image signature identity is unverified or unauthorized")
     if provenance.get("verified") is not True:
         raise ValueError("image provenance is not verified")
-    if provenance.get("subject_digest") != digest or provenance.get("source_sha") != source_sha:
+    if (
+        provenance.get("subject_digest") != digest
+        or provenance.get("source_sha") != source_sha
+    ):
         raise ValueError("image provenance is not bound to source and digest")
     if provenance.get("builder_identity") != WORKFLOW_IDENTITY:
         raise ValueError("image provenance builder identity is unauthorized")
@@ -266,10 +277,16 @@ def main() -> int:
     }
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.report.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     print(f"OPENBAO_GRPC_GO_SOURCE_VERSION={source_version}")
     print("OPENBAO_GRPC_GO_SOURCE_REMEDIATED=PASS")
-    print(f"OPENBAO_GRPC_GO_PROTECTED_IMAGE_EVIDENCE={'PASS' if evidence_valid else 'BLOCKED'}")
+    print(
+        "OPENBAO_GRPC_GO_PROTECTED_IMAGE_EVIDENCE="
+        f"{'PASS' if evidence_valid else 'BLOCKED'}"
+    )
     print("OPENBAO_RUNTIME_ACTIVATION=NO")
     return 0
 
