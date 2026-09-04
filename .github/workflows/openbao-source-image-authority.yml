@@ -5,22 +5,22 @@ on:
     paths:
       - "upstream/**"
       - "codestra/vulnerability-gates/grpc-go-cve-2026-84304.v1.json"
+      - "scripts/prepare_openbao_source_build.py"
       - "scripts/validate_grpc_go_exact_image_gate.py"
       - "scripts/write_openbao_source_image_evidence.py"
+      - "tests/test_prepare_openbao_source_build.py"
       - "tests/test_grpc_go_exact_image_gate.py"
       - "docs/security/GRPC-GO-CVE-2026-84304-PRODUCTION-GATE.md"
       - ".github/workflows/openbao-source-image-authority.yml"
   push:
-    branches:
-      - development
-      - test
-      - staging
-      - production
+    branches: [development, test, staging, production]
     paths:
       - "upstream/**"
       - "codestra/vulnerability-gates/grpc-go-cve-2026-84304.v1.json"
+      - "scripts/prepare_openbao_source_build.py"
       - "scripts/validate_grpc_go_exact_image_gate.py"
       - "scripts/write_openbao_source_image_evidence.py"
+      - "tests/test_prepare_openbao_source_build.py"
       - "tests/test_grpc_go_exact_image_gate.py"
       - "docs/security/GRPC-GO-CVE-2026-84304-PRODUCTION-GATE.md"
       - ".github/workflows/openbao-source-image-authority.yml"
@@ -31,7 +31,7 @@ on:
         required: true
         type: string
       release_id:
-        description: Reviewed source-image release identifier
+        description: Reviewed release ID (openbao-v2.6.2-codestra-YYYYMMDD.N)
         required: true
         type: string
 
@@ -50,10 +50,11 @@ env:
   IMAGE_REPOSITORY: ghcr.io/appolon1908-hue/codestra-openbao
   CERTIFICATE_IDENTITY: https://github.com/appolon1908-hue/Codestra-OpenBao/.github/workflows/openbao-source-image-authority.yml@refs/heads/production
   OIDC_ISSUER: https://token.actions.githubusercontent.com
+  ARCHIVE_VERSION: "0.3.2"
 
 jobs:
   source-image-validation:
-    name: Build and scan exact source image without publishing
+    name: Build and scan exact distroless source image without publishing
     if: ${{ github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -85,22 +86,38 @@ jobs:
             upstream/api/go.sum
             upstream/sdk/go.sum
 
-      - name: Validate source gate and regressions
+      - name: Validate gates and deterministic dependency overlay
         run: |
           set -Eeuo pipefail
           python3 -m py_compile \
+            scripts/prepare_openbao_source_build.py \
             scripts/validate_grpc_go_exact_image_gate.py \
             scripts/write_openbao_source_image_evidence.py \
+            tests/test_prepare_openbao_source_build.py \
             tests/test_grpc_go_exact_image_gate.py
           python3 scripts/validate_grpc_go_exact_image_gate.py
+          python3 tests/test_prepare_openbao_source_build.py
           python3 tests/test_grpc_go_exact_image_gate.py
           git diff --check
 
-      - name: Compile exact OpenBao source
+      - name: Apply reviewed build-only archive-module patch
         run: |
           set -Eeuo pipefail
-          source_tree="$(git rev-parse 'HEAD^{tree}')"
-          printf 'SOURCE_TREE=%s\n' "$source_tree" >> "$GITHUB_ENV"
+          python3 scripts/prepare_openbao_source_build.py \
+            --source-root upstream \
+            --report "${RUNNER_TEMP}/dependency-overlay.json"
+          (
+            cd upstream
+            go mod verify
+            test "$(go list -m -f '{{.Version}}' github.com/moby/go-archive)" = "v${ARCHIVE_VERSION}"
+          )
+          printf 'OVERLAY_SHA256=%s\n' \
+            "$(sha256sum "${RUNNER_TEMP}/dependency-overlay.json" | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Compile exact OpenBao binary
+        run: |
+          set -Eeuo pipefail
+          printf 'SOURCE_TREE=%s\n' "$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_ENV"
           (
             cd upstream
             CGO_ENABLED=0 BUILD_TAGS=openbao ./scripts/build.sh
@@ -108,18 +125,18 @@ jobs:
             go version -m bin/bao > "${RUNNER_TEMP}/bao-go-version.txt"
             grep -Eq $'dep[[:space:]]+google.golang.org/grpc[[:space:]]+v1\\.83\\.2([[:space:]]|$)' \
               "${RUNNER_TEMP}/bao-go-version.txt"
+            grep -Eq $'dep[[:space:]]+github.com/moby/go-archive[[:space:]]+v0\\.3\\.2([[:space:]]|$)' \
+              "${RUNNER_TEMP}/bao-go-version.txt"
             install -D -m 0555 bin/bao bin/amd64/bao
           )
-          grpc_version="$(awk '$1=="dep" && $2=="google.golang.org/grpc" {sub(/^v/,"",$3); print $3}' "${RUNNER_TEMP}/bao-go-version.txt")"
-          test "$grpc_version" = "1.83.2"
-          printf 'GRPC_VERSION=%s\n' "$grpc_version" >> "$GITHUB_ENV"
+          printf 'GRPC_VERSION=1.83.2\n' >> "$GITHUB_ENV"
 
-      - name: Package the exact binary as a non-root OCI image
+      - name: Package exact binary in pinned distroless runtime
         run: |
           set -Eeuo pipefail
           docker build \
             --platform linux/amd64 \
-            --target default \
+            --target distroless \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${EXPECTED_SHA}" \
             --label "org.opencontainers.image.version=2.6.2-codestra.${EXPECTED_SHA}" \
@@ -129,72 +146,47 @@ jobs:
           inspect="$(docker image inspect "${LOCAL_IMAGE}" --format '{{json .}}')"
           test "$(jq -r .Architecture <<<"$inspect")" = amd64
           test "$(jq -r .Os <<<"$inspect")" = linux
-          test "$(jq -r .Config.User <<<"$inspect")" = openbao
+          case "$(jq -r .Config.User <<<"$inspect")" in
+            65532|65532:65532|nonroot) ;;
+            *) echo 'distroless non-root user is not enforced' >&2; exit 1 ;;
+          esac
           test "$(jq -r '.Config.Labels["org.opencontainers.image.revision"]' <<<"$inspect")" = "${EXPECTED_SHA}"
-          docker run --rm --platform linux/amd64 "${LOCAL_IMAGE}" version |
-            grep -Fq "${EXPECTED_SHA}"
-
+          docker run --rm --platform linux/amd64 "${LOCAL_IMAGE}" version | grep -Fq "${EXPECTED_SHA}"
           container="$(docker create --platform linux/amd64 "${LOCAL_IMAGE}")"
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
           docker cp "${container}:/usr/bin/bao" "${RUNNER_TEMP}/bao-from-image"
           test "$(sha256sum upstream/bin/bao | awk '{print $1}')" = \
             "$(sha256sum "${RUNNER_TEMP}/bao-from-image" | awk '{print $1}')"
 
-      - name: Install checksum-verified SBOM and vulnerability tools
+      - name: Install checksum-verified SBOM and scanner tools
         run: scripts/install_ci_tools.sh syft trivy
 
-      - name: Generate SBOM and enforce high/critical vulnerability gate
+      - name: Generate SBOM and reject all high/critical findings
         run: |
           set -Eeuo pipefail
-          syft scan "docker:${LOCAL_IMAGE}" \
-            -o "spdx-json=${RUNNER_TEMP}/openbao.spdx.json" >/dev/null
-          trivy image \
-            --scanners vuln \
-            --ignore-unfixed \
-            --format json \
-            --output "${RUNNER_TEMP}/trivy.json" \
-            "${LOCAL_IMAGE}"
+          syft scan "docker:${LOCAL_IMAGE}" -o "spdx-json=${RUNNER_TEMP}/openbao.spdx.json" >/dev/null
+          trivy image --scanners vuln --ignore-unfixed --format json \
+            --output "${RUNNER_TEMP}/trivy.json" "${LOCAL_IMAGE}"
           python3 - "${RUNNER_TEMP}/trivy.json" <<'PY'
-          import json
-          import sys
+          import json, sys
           from pathlib import Path
-
           report = json.loads(Path(sys.argv[1]).read_text())
-          vulnerabilities = [
-              item
-              for result in report.get("Results") or []
-              for item in result.get("Vulnerabilities") or []
-          ]
-          blocked = [
-              item
-              for item in vulnerabilities
-              if str(item.get("Severity", "")).upper() in {"HIGH", "CRITICAL"}
-          ]
-          cve = [
-              item
-              for item in vulnerabilities
-              if item.get("VulnerabilityID") == "CVE-2026-84304"
-          ]
+          vulnerabilities = [v for r in report.get("Results") or [] for v in r.get("Vulnerabilities") or []]
+          cve = [v for v in vulnerabilities if v.get("VulnerabilityID") == "CVE-2026-84304"]
+          blocked = [v for v in vulnerabilities if str(v.get("Severity", "")).upper() in {"HIGH", "CRITICAL"}]
           if cve:
-              raise SystemExit("CVE-2026-84304 remains in the source-built image")
+              raise SystemExit("CVE-2026-84304 remains in the exact source image")
           if blocked:
-              summary = sorted(
-                  {
-                      f"{item.get('VulnerabilityID')}:{item.get('PkgName')}"
-                      for item in blocked
-                  }
-              )
-              raise SystemExit(f"unresolved high/critical vulnerabilities: {summary}")
+              raise SystemExit("unresolved high/critical findings: " + str(sorted({f"{v.get('VulnerabilityID')}:{v.get('PkgName')}" for v in blocked})))
           print("OPENBAO_LOCAL_SOURCE_IMAGE_VULNERABILITY_GATE=PASS")
           PY
-          test -s "${RUNNER_TEMP}/openbao.spdx.json"
-          test -s "${RUNNER_TEMP}/trivy.json"
 
-      - name: Upload secret-free source-image validation evidence
+      - name: Upload bounded source-image validation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: openbao-source-image-validation-${{ env.EXPECTED_SHA }}
           path: |
+            ${{ runner.temp }}/dependency-overlay.json
             ${{ runner.temp }}/bao-go-version.txt
             ${{ runner.temp }}/openbao.spdx.json
             ${{ runner.temp }}/trivy.json
@@ -223,7 +215,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify protected source and reviewed release identifier
+      - name: Verify protected source identity
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -244,38 +236,47 @@ jobs:
             upstream/api/go.sum
             upstream/sdk/go.sum
 
-      - name: Validate protected source gate
+      - name: Validate and apply reviewed build overlay
         run: |
           set -Eeuo pipefail
           python3 scripts/validate_grpc_go_exact_image_gate.py
+          python3 tests/test_prepare_openbao_source_build.py
           python3 tests/test_grpc_go_exact_image_gate.py
-
-      - name: Compile exact OpenBao source and package local image
-        run: |
-          set -Eeuo pipefail
+          mkdir -p "${RUNNER_TEMP}/openbao-source-image"
+          python3 scripts/prepare_openbao_source_build.py \
+            --source-root upstream \
+            --report "${RUNNER_TEMP}/openbao-source-image/dependency-overlay.json"
           (
             cd upstream
+            go mod verify
+            test "$(go list -m -f '{{.Version}}' github.com/moby/go-archive)" = "v${ARCHIVE_VERSION}"
             CGO_ENABLED=0 BUILD_TAGS=openbao ./scripts/build.sh
-            go version -m bin/bao > "${RUNNER_TEMP}/bao-go-version.txt"
+            go version -m bin/bao > "${RUNNER_TEMP}/openbao-source-image/bao-go-version.txt"
             install -D -m 0555 bin/bao bin/amd64/bao
           )
-          grpc_version="$(awk '$1=="dep" && $2=="google.golang.org/grpc" {sub(/^v/,"",$3); print $3}' "${RUNNER_TEMP}/bao-go-version.txt")"
-          test "$grpc_version" = "1.83.2"
-          printf 'GRPC_VERSION=%s\n' "$grpc_version" >> "$GITHUB_ENV"
+          grep -Eq $'dep[[:space:]]+google.golang.org/grpc[[:space:]]+v1\\.83\\.2([[:space:]]|$)' \
+            "${RUNNER_TEMP}/openbao-source-image/bao-go-version.txt"
+          grep -Eq $'dep[[:space:]]+github.com/moby/go-archive[[:space:]]+v0\\.3\\.2([[:space:]]|$)' \
+            "${RUNNER_TEMP}/openbao-source-image/bao-go-version.txt"
+          printf 'GRPC_VERSION=1.83.2\n' >> "$GITHUB_ENV"
+          printf 'OVERLAY_SHA256=%s\n' \
+            "$(sha256sum "${RUNNER_TEMP}/openbao-source-image/dependency-overlay.json" | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Package exact distroless image
+        run: |
+          set -Eeuo pipefail
           local_image="codestra-openbao:${EXPECTED_SHA}"
           printf 'LOCAL_IMAGE=%s\n' "$local_image" >> "$GITHUB_ENV"
-          docker build \
-            --platform linux/amd64 \
-            --target default \
+          docker build --platform linux/amd64 --target distroless \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${EXPECTED_SHA}" \
             --label "org.opencontainers.image.version=${RELEASE_ID}" \
-            --file upstream/Dockerfile \
-            --tag "$local_image" \
-            upstream
-          test "$(docker image inspect "$local_image" --format '{{.Config.User}}')" = openbao
-          docker run --rm --platform linux/amd64 "$local_image" version |
-            grep -Fq "${EXPECTED_SHA}"
+            --file upstream/Dockerfile --tag "$local_image" upstream
+          case "$(docker image inspect "$local_image" --format '{{.Config.User}}')" in
+            65532|65532:65532|nonroot) ;;
+            *) echo 'distroless non-root user is not enforced' >&2; exit 1 ;;
+          esac
+          docker run --rm --platform linux/amd64 "$local_image" version | grep -Fq "${EXPECTED_SHA}"
 
       - name: Install checksum-verified supply-chain tools
         run: scripts/install_ci_tools.sh syft trivy
@@ -295,47 +296,34 @@ jobs:
           digest="${reference#*@}"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           test "$reference" = "${IMAGE_REPOSITORY}@${digest}"
-          printf 'reference=%s\n' "$reference" >> "$GITHUB_OUTPUT"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
-          printf 'IMAGE_REFERENCE=%s\n' "$reference" >> "$GITHUB_ENV"
-          printf 'IMAGE_DIGEST=%s\n' "$digest" >> "$GITHUB_ENV"
+          printf 'IMAGE_REFERENCE=%s\nIMAGE_DIGEST=%s\n' "$reference" "$digest" >> "$GITHUB_ENV"
 
       - name: Generate exact-digest SBOM and vulnerability report
         run: |
           set -Eeuo pipefail
-          mkdir -p "${RUNNER_TEMP}/openbao-source-image"
           syft scan "registry:${IMAGE_REFERENCE}" \
             -o "spdx-json=${RUNNER_TEMP}/openbao-source-image/openbao.spdx.json" >/dev/null
-          trivy image \
-            --scanners vuln \
-            --ignore-unfixed \
-            --format json \
-            --output "${RUNNER_TEMP}/openbao-source-image/trivy.json" \
-            "${IMAGE_REFERENCE}"
+          trivy image --scanners vuln --ignore-unfixed --format json \
+            --output "${RUNNER_TEMP}/openbao-source-image/trivy.json" "${IMAGE_REFERENCE}"
 
       - name: Install pinned Sigstore client
         uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62
 
-      - name: Sign and verify exact image digest
+      - name: Sign and verify exact digest
         run: |
           set -Eeuo pipefail
           cosign sign --yes "${IMAGE_REFERENCE}"
-          cosign verify \
-            --certificate-identity "${CERTIFICATE_IDENTITY}" \
-            --certificate-oidc-issuer "${OIDC_ISSUER}" \
-            --output json \
+          cosign verify --certificate-identity "${CERTIFICATE_IDENTITY}" \
+            --certificate-oidc-issuer "${OIDC_ISSUER}" --output json \
             "${IMAGE_REFERENCE}" > "${RUNNER_TEMP}/openbao-source-image/signature-verification.json"
-          test -s "${RUNNER_TEMP}/openbao-source-image/signature-verification.json"
 
-      - name: Create and sign SLSA provenance predicate
+      - name: Create, sign, and verify SLSA provenance
         run: |
           set -Eeuo pipefail
           python3 - "${RUNNER_TEMP}/openbao-source-image/provenance-predicate.json" <<'PY'
-          import json
-          import os
-          import sys
+          import json, os, sys
           from pathlib import Path
-
           predicate = {
               "buildDefinition": {
                   "buildType": "https://codestra.media/buildtypes/openbao-source-image/v1",
@@ -344,45 +332,31 @@ jobs:
                       "sourceTree": os.environ["SOURCE_TREE"],
                       "platform": "linux/amd64",
                       "grpcGoVersion": os.environ["GRPC_VERSION"],
+                      "archiveModuleVersion": os.environ["ARCHIVE_VERSION"],
+                      "dependencyOverlaySha256": os.environ["OVERLAY_SHA256"],
+                      "runtimeTarget": "distroless",
                   },
                   "internalParameters": {},
-                  "resolvedDependencies": [
-                      {
-                          "uri": f"git+https://github.com/{os.environ['GITHUB_REPOSITORY']}@{os.environ['EXPECTED_SHA']}",
-                          "digest": {
-                              "gitCommit": os.environ["EXPECTED_SHA"],
-                              "gitTree": os.environ["SOURCE_TREE"],
-                          },
-                      }
-                  ],
+                  "resolvedDependencies": [{
+                      "uri": f"git+https://github.com/{os.environ['GITHUB_REPOSITORY']}@{os.environ['EXPECTED_SHA']}",
+                      "digest": {"gitCommit": os.environ["EXPECTED_SHA"], "gitTree": os.environ["SOURCE_TREE"]},
+                  }],
               },
               "runDetails": {
                   "builder": {"id": os.environ["CERTIFICATE_IDENTITY"]},
-                  "metadata": {
-                      "invocationId": f"{os.environ['GITHUB_RUN_ID']}/{os.environ['GITHUB_RUN_ATTEMPT']}"
-                  },
+                  "metadata": {"invocationId": f"{os.environ['GITHUB_RUN_ID']}/{os.environ['GITHUB_RUN_ATTEMPT']}"},
               },
           }
           Path(sys.argv[1]).write_text(json.dumps(predicate, indent=2, sort_keys=True) + "\n")
           PY
-          cosign attest --yes \
-            --predicate "${RUNNER_TEMP}/openbao-source-image/provenance-predicate.json" \
-            --type slsaprovenance \
-            "${IMAGE_REFERENCE}"
-          cosign verify-attestation \
-            --type slsaprovenance \
+          cosign attest --yes --predicate "${RUNNER_TEMP}/openbao-source-image/provenance-predicate.json" \
+            --type slsaprovenance "${IMAGE_REFERENCE}"
+          cosign verify-attestation --type slsaprovenance \
             --certificate-identity "${CERTIFICATE_IDENTITY}" \
-            --certificate-oidc-issuer "${OIDC_ISSUER}" \
-            "${IMAGE_REFERENCE}" > "${RUNNER_TEMP}/openbao-source-image/provenance-verification.json"
-          test -s "${RUNNER_TEMP}/openbao-source-image/provenance-verification.json"
-
-      - name: Attest SBOM
-        run: |
-          set -Eeuo pipefail
-          cosign attest --yes \
-            --predicate "${RUNNER_TEMP}/openbao-source-image/openbao.spdx.json" \
-            --type spdxjson \
-            "${IMAGE_REFERENCE}"
+            --certificate-oidc-issuer "${OIDC_ISSUER}" "${IMAGE_REFERENCE}" \
+            > "${RUNNER_TEMP}/openbao-source-image/provenance-verification.json"
+          cosign attest --yes --predicate "${RUNNER_TEMP}/openbao-source-image/openbao.spdx.json" \
+            --type spdxjson "${IMAGE_REFERENCE}"
 
       - name: Publish GitHub build provenance attestation
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
@@ -395,21 +369,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/write_openbao_source_image_evidence.py \
-            --source-sha "${EXPECTED_SHA}" \
-            --source-tree "${SOURCE_TREE}" \
-            --image-digest "${IMAGE_DIGEST}" \
-            --grpc-version "${GRPC_VERSION}" \
+            --source-sha "${EXPECTED_SHA}" --source-tree "${SOURCE_TREE}" \
+            --image-digest "${IMAGE_DIGEST}" --grpc-version "${GRPC_VERSION}" \
+            --archive-version "${ARCHIVE_VERSION}" \
+            --dependency-overlay "${RUNNER_TEMP}/openbao-source-image/dependency-overlay.json" \
             --sbom "${RUNNER_TEMP}/openbao-source-image/openbao.spdx.json" \
             --scan "${RUNNER_TEMP}/openbao-source-image/trivy.json" \
             --signature-verification "${RUNNER_TEMP}/openbao-source-image/signature-verification.json" \
             --provenance-verification "${RUNNER_TEMP}/openbao-source-image/provenance-verification.json" \
-            --run-id "${GITHUB_RUN_ID}" \
-            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
             --output "${RUNNER_TEMP}/openbao-source-image/exact-image-evidence.json"
           python3 scripts/validate_grpc_go_exact_image_gate.py \
             --evidence "${RUNNER_TEMP}/openbao-source-image/exact-image-evidence.json" \
-            --expected-source-sha "${EXPECTED_SHA}" \
-            --expected-source-tree "${SOURCE_TREE}" \
+            --expected-source-sha "${EXPECTED_SHA}" --expected-source-tree "${SOURCE_TREE}" \
             --require-remediated-image \
             --report "${RUNNER_TEMP}/openbao-source-image/gate-validation.json"
 
@@ -420,20 +392,3 @@ jobs:
           path: ${{ runner.temp }}/openbao-source-image/
           if-no-files-found: error
           retention-days: 90
-
-      - name: Publish source-image result
-        run: |
-          {
-            echo '## OpenBao source-built immutable image'
-            echo
-            echo "- Source SHA: \`${EXPECTED_SHA}\`"
-            echo "- Source tree: \`${SOURCE_TREE}\`"
-            echo "- Image: \`${IMAGE_REFERENCE}\`"
-            echo "- grpc-go: \`${GRPC_VERSION}\`"
-            echo '- Signature: `PASS`'
-            echo '- SLSA provenance: `PASS`'
-            echo '- SBOM attestation: `PASS`'
-            echo '- High/critical vulnerabilities: `0`'
-            echo '- Runtime activation authorized: `false`'
-            echo '- Next action: reviewed evidence commit and protected promotion'
-          } >> "$GITHUB_STEP_SUMMARY"
